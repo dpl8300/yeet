@@ -1,0 +1,457 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A20000000000000000000001 /* YEETApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000001 /* YEETApp.swift */; };
+		A20000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000002 /* ContentView.swift */; };
+		A20000000000000000000003 /* YEETViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000003 /* YEETViewModel.swift */; };
+		A20000000000000000000004 /* MotionSample.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000004 /* MotionSample.swift */; };
+		A20000000000000000000005 /* DetectionConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000005 /* DetectionConfig.swift */; };
+		A20000000000000000000006 /* DetectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000006 /* DetectionState.swift */; };
+		A20000000000000000000007 /* AirtimeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000007 /* AirtimeDetector.swift */; };
+		A20000000000000000000008 /* MotionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000008 /* MotionService.swift */; };
+		A20000000000000000000009 /* DetectionSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000009 /* DetectionSession.swift */; };
+		A2000000000000000000000A /* DetectionResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000A /* DetectionResult.swift */; };
+		A2000000000000000000000B /* DebugDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000B /* DebugDiagnostics.swift */; };
+		A2000000000000000000000C /* AirtimeDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000C /* AirtimeDetectorTests.swift */; };
+		A2000000000000000000000D /* YEETViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000D /* YEETViewModelTests.swift */; };
+		A2000000000000000000000E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A40000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000002;
+			remoteInfo = YEET;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		A30000000000000000000001 /* YEETApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YEETApp.swift; sourceTree = "<group>"; };
+		A30000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A30000000000000000000003 /* YEETViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YEETViewModel.swift; sourceTree = "<group>"; };
+		A30000000000000000000004 /* MotionSample.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionSample.swift; sourceTree = "<group>"; };
+		A30000000000000000000005 /* DetectionConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionConfig.swift; sourceTree = "<group>"; };
+		A30000000000000000000006 /* DetectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionState.swift; sourceTree = "<group>"; };
+		A30000000000000000000007 /* AirtimeDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirtimeDetector.swift; sourceTree = "<group>"; };
+		A30000000000000000000008 /* MotionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionService.swift; sourceTree = "<group>"; };
+		A30000000000000000000009 /* DetectionSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionSession.swift; sourceTree = "<group>"; };
+		A3000000000000000000000A /* DetectionResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionResult.swift; sourceTree = "<group>"; };
+		A3000000000000000000000B /* DebugDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugDiagnostics.swift; sourceTree = "<group>"; };
+		A3000000000000000000000C /* AirtimeDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirtimeDetectorTests.swift; sourceTree = "<group>"; };
+		A3000000000000000000000D /* YEETViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YEETViewModelTests.swift; sourceTree = "<group>"; };
+		A3000000000000000000000E /* YEET.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YEET.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A3000000000000000000000F /* YEETTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = YEETTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A30000000000000000000010 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A30000000000000000000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A50000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A50000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A60000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A60000000000000000000002 /* YEET */,
+				A60000000000000000000009 /* YEETTests */,
+				A6000000000000000000000A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A60000000000000000000002 /* YEET */ = {
+			isa = PBXGroup;
+			children = (
+				A60000000000000000000003 /* App */,
+				A60000000000000000000004 /* Views */,
+				A60000000000000000000005 /* Motion */,
+				A60000000000000000000006 /* Models */,
+				A60000000000000000000007 /* Debug */,
+				A30000000000000000000011 /* Assets.xcassets */,
+				A30000000000000000000010 /* Info.plist */,
+			);
+			path = YEET;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000003 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000001 /* YEETApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000004 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000002 /* ContentView.swift */,
+				A30000000000000000000003 /* YEETViewModel.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000005 /* Motion */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000004 /* MotionSample.swift */,
+				A30000000000000000000005 /* DetectionConfig.swift */,
+				A30000000000000000000006 /* DetectionState.swift */,
+				A30000000000000000000007 /* AirtimeDetector.swift */,
+				A30000000000000000000008 /* MotionService.swift */,
+				A30000000000000000000009 /* DetectionSession.swift */,
+			);
+			path = Motion;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000006 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A3000000000000000000000A /* DetectionResult.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000007 /* Debug */ = {
+			isa = PBXGroup;
+			children = (
+				A3000000000000000000000B /* DebugDiagnostics.swift */,
+			);
+			path = Debug;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000009 /* YEETTests */ = {
+			isa = PBXGroup;
+			children = (
+				A3000000000000000000000C /* AirtimeDetectorTests.swift */,
+				A3000000000000000000000D /* YEETViewModelTests.swift */,
+			);
+			path = YEETTests;
+			sourceTree = "<group>";
+		};
+		A6000000000000000000000A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A3000000000000000000000E /* YEET.app */,
+				A3000000000000000000000F /* YEETTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A10000000000000000000002 /* YEET */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A70000000000000000000002 /* Build configuration list for PBXNativeTarget "YEET" */;
+			buildPhases = (
+				A50000000000000000000003 /* Sources */,
+				A50000000000000000000001 /* Frameworks */,
+				A50000000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = YEET;
+			productName = YEET;
+			productReference = A3000000000000000000000E /* YEET.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A10000000000000000000003 /* YEETTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A70000000000000000000003 /* Build configuration list for PBXNativeTarget "YEETTests" */;
+			buildPhases = (
+				A50000000000000000000004 /* Sources */,
+				A50000000000000000000002 /* Frameworks */,
+				A50000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A80000000000000000000001 /* PBXTargetDependency */,
+			);
+			name = YEETTests;
+			productName = YEETTests;
+			productReference = A3000000000000000000000F /* YEETTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A10000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					A10000000000000000000002 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					A10000000000000000000003 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = A10000000000000000000002;
+					};
+				};
+			};
+			buildConfigurationList = A70000000000000000000001 /* Build configuration list for PBXProject "YEET" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A60000000000000000000001;
+			productRefGroup = A6000000000000000000000A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A10000000000000000000002 /* YEET */,
+				A10000000000000000000003 /* YEETTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A50000000000000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A2000000000000000000000E /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A50000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A50000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000001 /* YEETApp.swift in Sources */,
+				A20000000000000000000002 /* ContentView.swift in Sources */,
+				A20000000000000000000003 /* YEETViewModel.swift in Sources */,
+				A20000000000000000000004 /* MotionSample.swift in Sources */,
+				A20000000000000000000005 /* DetectionConfig.swift in Sources */,
+				A20000000000000000000006 /* DetectionState.swift in Sources */,
+				A20000000000000000000007 /* AirtimeDetector.swift in Sources */,
+				A20000000000000000000008 /* MotionService.swift in Sources */,
+				A20000000000000000000009 /* DetectionSession.swift in Sources */,
+				A2000000000000000000000A /* DetectionResult.swift in Sources */,
+				A2000000000000000000000B /* DebugDiagnostics.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A50000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A2000000000000000000000C /* AirtimeDetectorTests.swift in Sources */,
+				A2000000000000000000000D /* YEETViewModelTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A80000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000002 /* YEET */;
+			targetProxy = A40000000000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A90000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A90000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A90000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TSKRB6UAPL;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = YEET/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dpl8300.yeet;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A90000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TSKRB6UAPL;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = YEET/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dpl8300.yeet;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		A90000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.dpl8300.yeet.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/YEET.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/YEET";
+			};
+			name = Debug;
+		};
+		A90000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.dpl8300.yeet.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/YEET.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/YEET";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A70000000000000000000001 /* Build configuration list for PBXProject "YEET" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A90000000000000000000001 /* Debug */,
+				A90000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A70000000000000000000002 /* Build configuration list for PBXNativeTarget "YEET" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A90000000000000000000003 /* Debug */,
+				A90000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A70000000000000000000003 /* Build configuration list for PBXNativeTarget "YEETTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A90000000000000000000005 /* Debug */,
+				A90000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A10000000000000000000001 /* Project object */;
+}
