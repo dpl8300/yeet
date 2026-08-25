@@ -1,8 +1,22 @@
 import Foundation
 import SwiftUI
 
+enum YEETCountdownStep: Int, CaseIterable, Equatable, Sendable {
+    case three = 3
+    case two = 2
+    case one = 1
+}
+
+enum YEETPreparationContext: Equatable, Sendable {
+    case idle
+    case result(DetectionResult)
+    case invalid(DetectionInvalidReason)
+}
+
 enum YEETViewState: Equatable, Sendable {
     case idle
+    case preparing(YEETPreparationContext)
+    case countdown(YEETCountdownStep)
     case waiting
     case airborne
     case result(DetectionResult)
@@ -17,38 +31,100 @@ final class YEETViewModel: ObservableObject {
 #endif
 
     private let config: DetectionConfig
+    private let preCountdownSleep: @Sendable () async throws -> Void
+    private let countdownSleep: @Sendable () async throws -> Void
+    private let launchRenderSleep: @Sendable () async throws -> Void
     private let motionServiceFactory: () -> any MotionServicing
     private var motionService: (any MotionServicing)?
     private var activeSessionID: UUID?
+    private var countdownTask: Task<Void, Never>?
     private var timeoutTask: Task<Void, Never>?
 
     init(
         config: DetectionConfig = .spikeV1,
+        preCountdownSleep: @escaping @Sendable () async throws -> Void = {
+            try await Task.sleep(for: .milliseconds(400))
+        },
+        countdownSleep: @escaping @Sendable () async throws -> Void = {
+            try await Task.sleep(for: .seconds(1))
+        },
+        launchRenderSleep: @escaping @Sendable () async throws -> Void = {
+            try await Task.sleep(for: .milliseconds(16))
+        },
         motionServiceFactory: @escaping () -> any MotionServicing = { MotionService() }
     ) {
         self.config = config
+        self.preCountdownSleep = preCountdownSleep
+        self.countdownSleep = countdownSleep
+        self.launchRenderSleep = launchRenderSleep
         self.motionServiceFactory = motionServiceFactory
     }
 
     func start() {
+        startCountdown(from: .idle)
+    }
+
+    func startAgain() {
+        let context: YEETPreparationContext = switch state {
+        case let .result(result): .result(result)
+        case let .invalid(reason): .invalid(reason)
+        default: .idle
+        }
+        startCountdown(from: context)
+    }
+
+    private func startCountdown(from context: YEETPreparationContext) {
         cancelActiveSession()
 
+        state = .preparing(context)
+        motionService = motionServiceFactory()
+#if DEBUG
+        debugSnapshot = nil
+#endif
+
+        let initialSleep = preCountdownSleep
+        let stepSleep = countdownSleep
+        countdownTask = Task { [weak self, initialSleep, stepSleep] in
+            do {
+                try await initialSleep()
+                try Task.checkCancellation()
+                self?.state = .countdown(.three)
+
+                try await stepSleep()
+                try Task.checkCancellation()
+                self?.state = .countdown(.two)
+
+                try await stepSleep()
+                try Task.checkCancellation()
+                self?.state = .countdown(.one)
+
+                try await stepSleep()
+                try Task.checkCancellation()
+                try await self?.beginDetection()
+            } catch {
+                // Cancellation is expected when the app backgrounds or a new run starts.
+            }
+        }
+    }
+
+    private func beginDetection() async throws {
         let sessionID = UUID()
-        let service = motionServiceFactory()
+        guard let service = motionService else { return }
         let session = DetectionSession(config: config)
         session.arm()
 
         activeSessionID = sessionID
-        motionService = service
         state = .waiting
-#if DEBUG
-        debugSnapshot = nil
-#endif
+        try await launchRenderSleep()
+        try Task.checkCancellation()
+        guard sessionID == activeSessionID else { return }
+
         scheduleTimeout(
             after: config.armedTimeout + 0.5,
             sessionID: sessionID,
             reason: .noThrow
         )
+        countdownTask = nil
 
         service.start { [weak self] result in
             switch result {
@@ -72,13 +148,18 @@ final class YEETViewModel: ObservableObject {
         }
     }
 
-    func startAgain() {
-        start()
-    }
-
     func handleScenePhase(_ scenePhase: ScenePhase) {
-        guard scenePhase != .active, activeSessionID != nil else { return }
-        invalidateActiveSession(reason: .appInactive)
+        guard scenePhase != .active else { return }
+
+        switch state {
+        case .preparing, .countdown:
+            cancelActiveSession()
+            state = .idle
+        default:
+            if activeSessionID != nil {
+                invalidateActiveSession(reason: .appInactive)
+            }
+        }
     }
 
     private func receive(_ output: DetectionSessionOutput, for sessionID: UUID) {
@@ -124,6 +205,8 @@ final class YEETViewModel: ObservableObject {
     }
 
     private func finish(_ finalState: YEETViewState) {
+        countdownTask?.cancel()
+        countdownTask = nil
         motionService?.stop()
         motionService = nil
         activeSessionID = nil
@@ -133,6 +216,8 @@ final class YEETViewModel: ObservableObject {
     }
 
     private func cancelActiveSession() {
+        countdownTask?.cancel()
+        countdownTask = nil
         motionService?.stop()
         motionService = nil
         activeSessionID = nil

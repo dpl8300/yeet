@@ -1,7 +1,10 @@
+import CoreHaptics
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var hapticPlayer = YEETHapticPlayer()
     @StateObject private var viewModel = YEETViewModel()
 
     var body: some View {
@@ -10,6 +13,12 @@ struct ContentView: View {
             onStart: viewModel.start,
             onStartAgain: viewModel.startAgain
         )
+        .onChange(of: viewModel.state) { oldState, newState in
+            guard let cue = YEETHapticCue.forTransition(from: oldState, to: newState) else {
+                return
+            }
+            hapticPlayer.play(cue)
+        }
 #if DEBUG
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if let snapshot = viewModel.debugSnapshot {
@@ -20,8 +29,16 @@ struct ContentView: View {
         }
 #endif
         .preferredColorScheme(.light)
+        .onAppear {
+            hapticPlayer.prepare()
+        }
         .onChange(of: scenePhase) { _, newPhase in
             viewModel.handleScenePhase(newPhase)
+            if newPhase == .active {
+                hapticPlayer.prepare()
+            } else {
+                hapticPlayer.stop()
+            }
         }
     }
 }
@@ -36,6 +53,19 @@ struct YEETScreen: View {
         case .idle:
             IdleView(onStart: onStart)
 
+        case let .preparing(context):
+            switch context {
+            case .idle:
+                IdleView(onStart: {}, isEnabled: false)
+            case let .result(result):
+                ResultView(result: result, onStartAgain: {}, isEnabled: false)
+            case .invalid:
+                InvalidView(onStartAgain: {}, isEnabled: false)
+            }
+
+        case let .countdown(step):
+            CountdownView(step: step)
+
         case .waiting:
             WaitingView()
 
@@ -48,6 +78,123 @@ struct YEETScreen: View {
         case .invalid:
             InvalidView(onStartAgain: onStartAgain)
         }
+    }
+}
+
+enum YEETHapticCue: Int, CaseIterable, Equatable, Sendable {
+    case light
+    case medium
+    case strong
+    case launch
+
+    var intensity: Double {
+        switch self {
+        case .light: 0.35
+        case .medium: 0.55
+        case .strong: 0.8
+        case .launch: 1.0
+        }
+    }
+
+    var duration: TimeInterval {
+        switch self {
+        case .light: 0.14
+        case .medium: 0.22
+        case .strong: 0.30
+        case .launch: 0.42
+        }
+    }
+
+    var sharpness: Double {
+        switch self {
+        case .light: 0.2
+        case .medium: 0.4
+        case .strong: 0.65
+        case .launch: 0.9
+        }
+    }
+
+    static func forTransition(
+        from oldState: YEETViewState,
+        to newState: YEETViewState
+    ) -> YEETHapticCue? {
+        switch newState {
+        case .countdown(.three): .light
+        case .countdown(.two): .medium
+        case .countdown(.one): .strong
+        case .waiting where oldState == .countdown(.one): .launch
+        default: nil
+        }
+    }
+}
+
+@MainActor
+private final class YEETHapticPlayer: ObservableObject {
+    private var engine: CHHapticEngine?
+
+    func prepare() {
+        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return }
+
+        do {
+            let engine = try engine ?? CHHapticEngine()
+            engine.playsHapticsOnly = true
+            engine.isAutoShutdownEnabled = false
+            try engine.start()
+            self.engine = engine
+        } catch {
+            engine = nil
+        }
+    }
+
+    func play(_ cue: YEETHapticCue) {
+        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else {
+            playFallback(cue)
+            return
+        }
+
+        prepare()
+        guard let engine else {
+            playFallback(cue)
+            return
+        }
+
+        let event = CHHapticEvent(
+            eventType: .hapticContinuous,
+            parameters: [
+                CHHapticEventParameter(
+                    parameterID: .hapticIntensity,
+                    value: Float(cue.intensity)
+                ),
+                CHHapticEventParameter(
+                    parameterID: .hapticSharpness,
+                    value: Float(cue.sharpness)
+                )
+            ],
+            relativeTime: 0,
+            duration: cue.duration
+        )
+
+        do {
+            let pattern = try CHHapticPattern(events: [event], parameters: [])
+            let player = try engine.makePlayer(with: pattern)
+            try player.start(atTime: CHHapticTimeImmediate)
+        } catch {
+            playFallback(cue)
+        }
+    }
+
+    func stop() {
+        engine?.stop(completionHandler: nil)
+        engine = nil
+    }
+
+    private func playFallback(_ cue: YEETHapticCue) {
+        let style: UIImpactFeedbackGenerator.FeedbackStyle = switch cue {
+        case .light: .light
+        case .medium: .medium
+        case .strong, .launch: .heavy
+        }
+        UIImpactFeedbackGenerator(style: style).impactOccurred(intensity: cue.intensity)
     }
 }
 
@@ -82,6 +229,7 @@ private struct YEETPage<Content: View>: View {
 
 private struct IdleView: View {
     let onStart: () -> Void
+    var isEnabled = true
 
     var body: some View {
         YEETPage(background: YEETTheme.paper) {
@@ -90,14 +238,17 @@ private struct IdleView: View {
                     .padding(.top, 10)
 
                 YEETHeroButton(action: onStart)
-                    .accessibilityHint("Starts listening for a phone toss")
+                    .disabled(!isEnabled)
+                    .accessibilityHint(
+                        isEnabled ? "Starts listening for a phone toss" : "Countdown starting"
+                    )
                     .accessibilityIdentifier("yeet.start")
                     .padding(.top, 54)
 
                 Spacer(minLength: 80)
             }
         }
-        .accessibilityIdentifier("yeet.state.idle")
+        .accessibilityIdentifier(isEnabled ? "yeet.state.idle" : "yeet.state.preparing")
     }
 }
 
@@ -109,12 +260,104 @@ private struct WaitingView: View {
 
                 YEETActionMark()
 
-                Spacer(minLength: 80)
+                Spacer(minLength: 64)
+
+                Capsule()
+                    .fill(YEETTheme.paper)
+                    .frame(width: 88, height: 4)
+                    .accessibilityHidden(true)
+
+                HapticCaption(title: "HAPTIC LAUNCH", foreground: YEETTheme.ink)
+                    .padding(.top, 28)
+                    .padding(.bottom, 32)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("YEET. Waiting for release.")
         .accessibilityIdentifier("yeet.state.waiting")
+    }
+}
+
+private struct CountdownView: View {
+    let step: YEETCountdownStep
+
+    @ScaledMetric(relativeTo: .largeTitle) private var numberSize: CGFloat = 210
+
+    private var progressIndex: Int {
+        switch step {
+        case .three: 0
+        case .two: 1
+        case .one: 2
+        }
+    }
+
+    private var hapticLabel: String {
+        switch step {
+        case .three: "HAPTIC LIGHT"
+        case .two: "HAPTIC MEDIUM"
+        case .one: "HAPTIC STRONG"
+        }
+    }
+
+    var body: some View {
+        YEETPage(background: YEETTheme.paper) {
+            VStack(spacing: 0) {
+                Spacer(minLength: 64)
+
+                Text(step.rawValue.formatted())
+                    .font(.system(size: numberSize, weight: .black, design: .default))
+                    .fontWidth(.compressed)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.58)
+                    .foregroundStyle(YEETTheme.ink)
+
+                Spacer(minLength: 56)
+
+                CountdownProgress(activeIndex: progressIndex)
+
+                HapticCaption(title: hapticLabel, foreground: YEETTheme.muted)
+                    .padding(.top, 28)
+                    .padding(.bottom, 32)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Countdown " + step.rawValue.formatted())
+        .accessibilityAddTraits(.updatesFrequently)
+        .accessibilityIdentifier("yeet.state.countdown.\(step.rawValue)")
+    }
+}
+
+private struct CountdownProgress: View {
+    let activeIndex: Int
+
+    var body: some View {
+        HStack(spacing: 16) {
+            ForEach(0..<4, id: \.self) { index in
+                Circle()
+                    .fill(index == activeIndex ? YEETTheme.ink : YEETTheme.ink.opacity(0.12))
+                    .frame(width: index == activeIndex ? 7 : 6, height: index == activeIndex ? 7 : 6)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+private struct HapticCaption: View {
+    let title: String
+    let foreground: Color
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "waveform.path")
+                .font(.caption.weight(.bold))
+
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .tracking(0.45)
+        }
+        .foregroundStyle(foreground)
+        .accessibilityHidden(true)
     }
 }
 
@@ -153,6 +396,7 @@ private struct AirborneView: View {
 private struct ResultView: View {
     let result: DetectionResult
     let onStartAgain: () -> Void
+    var isEnabled = true
 
     @ScaledMetric(relativeTo: .largeTitle) private var resultSize: CGFloat = 104
     @ScaledMetric(relativeTo: .title) private var suffixSize: CGFloat = 50
@@ -190,17 +434,21 @@ private struct ResultView: View {
                 Spacer(minLength: 120)
 
                 YEETPrimaryButton(title: "YEET AGAIN", action: onStartAgain)
-                    .accessibilityHint("Starts a new airtime measurement")
+                    .disabled(!isEnabled)
+                    .accessibilityHint(
+                        isEnabled ? "Starts a new airtime measurement" : "Countdown starting"
+                    )
                     .accessibilityIdentifier("yeet.startAgain")
                     .padding(.bottom, 34)
             }
         }
-        .accessibilityIdentifier("yeet.state.result")
+        .accessibilityIdentifier(isEnabled ? "yeet.state.result" : "yeet.state.preparing.result")
     }
 }
 
 private struct InvalidView: View {
     let onStartAgain: () -> Void
+    var isEnabled = true
 
     var body: some View {
         YEETPage(background: YEETTheme.paper) {
@@ -225,13 +473,16 @@ private struct InvalidView: View {
                 Spacer(minLength: 100)
 
                 YEETPrimaryButton(title: "TRY AGAIN", action: onStartAgain)
-                    .accessibilityHint("Starts a new airtime measurement")
+                    .disabled(!isEnabled)
+                    .accessibilityHint(
+                        isEnabled ? "Starts a new airtime measurement" : "Countdown starting"
+                    )
                     .accessibilityIdentifier("yeet.startAgain")
                     .padding(.bottom, 34)
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("yeet.state.invalid")
+        .accessibilityIdentifier(isEnabled ? "yeet.state.invalid" : "yeet.state.preparing.invalid")
     }
 }
 
@@ -453,6 +704,26 @@ private struct DebugPanel: View {
 
 #Preview("Idle") {
     YEETScreen(state: .idle, onStart: {}, onStartAgain: {})
+        .preferredColorScheme(.light)
+}
+
+#Preview("Preparing") {
+    YEETScreen(state: .preparing(.idle), onStart: {}, onStartAgain: {})
+        .preferredColorScheme(.light)
+}
+
+#Preview("Countdown · 3") {
+    YEETScreen(state: .countdown(.three), onStart: {}, onStartAgain: {})
+        .preferredColorScheme(.light)
+}
+
+#Preview("Countdown · 2") {
+    YEETScreen(state: .countdown(.two), onStart: {}, onStartAgain: {})
+        .preferredColorScheme(.light)
+}
+
+#Preview("Countdown · 1") {
+    YEETScreen(state: .countdown(.one), onStart: {}, onStartAgain: {})
         .preferredColorScheme(.light)
 }
 
