@@ -1,15 +1,16 @@
 # YEET technical spike
 
-YEET is currently a deliberately minimal SwiftUI/Core Motion experiment for measuring iPhone airtime. It has no persistence, account, backend, leaderboard, camera, sharing, analytics, or production visual design.
+YEET is currently a deliberately minimal SwiftUI/Core Motion experiment for measuring iPhone airtime. It includes optional, temporary rear-camera POV recording and in-app replay, but has no persistence, account, backend, leaderboard, sharing, or analytics.
 
 ## Run on an iPhone
 
 1. Open `YEET.xcodeproj` in Xcode 26.6 or newer.
 2. In the YEET target's Signing & Capabilities pane, select your development team. Change `com.dpl8300.yeet` only if that identifier is unavailable to the team.
 3. Connect an iPhone running iOS 18 or newer, enable Developer Mode, select it as the run destination, and run the `YEET` scheme.
-4. Tap **Start YEET** and make only low, controlled tosses over a bed or couch, with a case fitted and the area clear.
+4. Optionally enable **Record POV** and grant camera and microphone access.
+5. Tap **Start YEET** and make only low, controlled tosses over a bed or couch, with a case fitted and the area clear.
 
-The simulator is useful for UI and synthetic tests, but it cannot validate live freefall detection.
+The simulator is useful for UI and synthetic tests, but it cannot validate live freefall detection or POV capture.
 
 ## Verify
 

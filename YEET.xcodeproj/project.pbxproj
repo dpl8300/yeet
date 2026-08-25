@@ -21,6 +21,7 @@
 		A2000000000000000000000C /* AirtimeDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000C /* AirtimeDetectorTests.swift */; };
 		A2000000000000000000000D /* YEETViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000D /* YEETViewModelTests.swift */; };
 		A2000000000000000000000E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* Assets.xcassets */; };
+		A2000000000000000000000F /* POVCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012 /* POVCaptureService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,6 +52,7 @@
 		A3000000000000000000000F /* YEETTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = YEETTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A30000000000000000000010 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A30000000000000000000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A30000000000000000000012 /* POVCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = POVCaptureService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,6 +88,7 @@
 				A60000000000000000000003 /* App */,
 				A60000000000000000000004 /* Views */,
 				A60000000000000000000005 /* Motion */,
+				A6000000000000000000000B /* POV */,
 				A60000000000000000000006 /* Models */,
 				A60000000000000000000007 /* Debug */,
 				A30000000000000000000011 /* Assets.xcassets */,
@@ -138,6 +141,14 @@
 				A3000000000000000000000B /* DebugDiagnostics.swift */,
 			);
 			path = Debug;
+			sourceTree = "<group>";
+		};
+		A6000000000000000000000B /* POV */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000012 /* POVCaptureService.swift */,
+			);
+			path = POV;
 			sourceTree = "<group>";
 		};
 		A60000000000000000000009 /* YEETTests */ = {
@@ -260,6 +271,7 @@
 				A20000000000000000000001 /* YEETApp.swift in Sources */,
 				A20000000000000000000002 /* ContentView.swift in Sources */,
 				A20000000000000000000003 /* YEETViewModel.swift in Sources */,
+				A2000000000000000000000F /* POVCaptureService.swift in Sources */,
 				A20000000000000000000004 /* MotionSample.swift in Sources */,
 				A20000000000000000000005 /* DetectionConfig.swift in Sources */,
 				A20000000000000000000006 /* DetectionState.swift in Sources */,

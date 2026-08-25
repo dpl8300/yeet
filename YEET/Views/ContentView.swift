@@ -1,17 +1,30 @@
+import AVFoundation
+import AVKit
 import CoreHaptics
 import SwiftUI
 import UIKit
 
 struct ContentView: View {
+    @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var hapticPlayer = YEETHapticPlayer()
     @StateObject private var viewModel = YEETViewModel()
+    @State private var replayPresentation: POVReplayPresentation?
 
     var body: some View {
         YEETScreen(
             state: viewModel.state,
+            isPOVEnabled: viewModel.isPOVEnabled,
+            povState: viewModel.povState,
+            canStart: viewModel.canStart,
+            canStartAgain: viewModel.canStartAgain,
+            isPOVRecording: viewModel.isPOVRecording,
             onStart: viewModel.start,
-            onStartAgain: viewModel.startAgain
+            onStartAgain: viewModel.startAgain,
+            onPOVChange: viewModel.setPOVEnabled,
+            onViewPOV: { url, result in
+                replayPresentation = POVReplayPresentation(url: url, result: result)
+            }
         )
         .onChange(of: viewModel.state) { oldState, newState in
             guard let cue = YEETHapticCue.forTransition(from: oldState, to: newState) else {
@@ -29,36 +42,106 @@ struct ContentView: View {
         }
 #endif
         .preferredColorScheme(.light)
+        .fullScreenCover(item: $replayPresentation) { replay in
+            POVReplayView(url: replay.url, result: replay.result) {
+                replayPresentation = nil
+            }
+        }
+        .alert(item: povAlertBinding) { alert in
+            if alert.offersSettings {
+                return Alert(
+                    title: Text(alert.title),
+                    message: Text(alert.message),
+                    primaryButton: .cancel(),
+                    secondaryButton: .default(Text("Open Settings")) {
+                        guard let url = URL(string: UIApplication.openSettingsURLString) else {
+                            return
+                        }
+                        openURL(url)
+                    }
+                )
+            }
+
+            return Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
         .onAppear {
+            viewModel.enablePOVByDefaultIfAuthorized()
             hapticPlayer.prepare()
         }
         .onChange(of: scenePhase) { _, newPhase in
             viewModel.handleScenePhase(newPhase)
             if newPhase == .active {
+                viewModel.enablePOVByDefaultIfAuthorized()
                 hapticPlayer.prepare()
             } else {
                 hapticPlayer.stop()
             }
         }
     }
+
+    private var povAlertBinding: Binding<POVAlert?> {
+        Binding(
+            get: { viewModel.povAlert },
+            set: { newValue in
+                if newValue == nil {
+                    viewModel.dismissPOVAlert()
+                }
+            }
+        )
+    }
+}
+
+private struct POVReplayPresentation: Identifiable {
+    let id = UUID()
+    let url: URL
+    let result: DetectionResult
 }
 
 struct YEETScreen: View {
     let state: YEETViewState
+    var isPOVEnabled = false
+    var povState: POVCaptureState = .disabled
+    var canStart = true
+    var canStartAgain = true
+    var isPOVRecording = false
     let onStart: () -> Void
     let onStartAgain: () -> Void
+    var onPOVChange: (Bool) -> Void = { _ in }
+    var onViewPOV: (URL, DetectionResult) -> Void = { _, _ in }
 
     var body: some View {
         switch state {
         case .idle:
-            IdleView(onStart: onStart)
+            IdleView(
+                isPOVEnabled: isPOVEnabled,
+                povState: povState,
+                onStart: onStart,
+                onPOVChange: onPOVChange,
+                isEnabled: canStart
+            )
 
         case let .preparing(context):
             switch context {
             case .idle:
-                IdleView(onStart: {}, isEnabled: false)
+                IdleView(
+                    isPOVEnabled: isPOVEnabled,
+                    povState: povState,
+                    onStart: {},
+                    onPOVChange: { _ in },
+                    isEnabled: false
+                )
             case let .result(result):
-                ResultView(result: result, onStartAgain: {}, isEnabled: false)
+                ResultView(
+                    result: result,
+                    povState: povState,
+                    onStartAgain: {},
+                    onViewPOV: { _ in },
+                    isEnabled: false
+                )
             case .invalid:
                 InvalidView(onStartAgain: {}, isEnabled: false)
             }
@@ -70,13 +153,19 @@ struct YEETScreen: View {
             WaitingView()
 
         case .airborne:
-            AirborneView()
+            AirborneView(isRecording: isPOVRecording)
 
         case let .result(result):
-            ResultView(result: result, onStartAgain: onStartAgain)
+            ResultView(
+                result: result,
+                povState: povState,
+                onStartAgain: onStartAgain,
+                onViewPOV: { url in onViewPOV(url, result) },
+                isEnabled: canStartAgain
+            )
 
         case .invalid:
-            InvalidView(onStartAgain: onStartAgain)
+            InvalidView(onStartAgain: onStartAgain, isEnabled: canStartAgain)
         }
     }
 }
@@ -228,7 +317,10 @@ private struct YEETPage<Content: View>: View {
 }
 
 private struct IdleView: View {
+    let isPOVEnabled: Bool
+    let povState: POVCaptureState
     let onStart: () -> Void
+    let onPOVChange: (Bool) -> Void
     var isEnabled = true
 
     var body: some View {
@@ -245,10 +337,73 @@ private struct IdleView: View {
                     .accessibilityIdentifier("yeet.start")
                     .padding(.top, 54)
 
+                POVToggleRow(
+                    isOn: isPOVEnabled,
+                    isPreparing: povState == .preparing,
+                    onChange: onPOVChange
+                )
+                .disabled(!isEnabled || povState == .preparing)
+                .padding(.top, 22)
+
                 Spacer(minLength: 80)
             }
         }
         .accessibilityIdentifier(isEnabled ? "yeet.state.idle" : "yeet.state.preparing")
+    }
+}
+
+private struct POVToggleRow: View {
+    let isOn: Bool
+    let isPreparing: Bool
+    let onChange: (Bool) -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(YEETTheme.yellow)
+                    .frame(width: 30, height: 30)
+
+                Image(systemName: "video.fill")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(YEETTheme.ink)
+            }
+            .accessibilityHidden(true)
+
+            Text("Record POV")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(YEETTheme.ink)
+
+            Spacer(minLength: 12)
+
+            if isPreparing {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(YEETTheme.ink)
+                    .frame(width: 51)
+                    .accessibilityLabel("Preparing camera")
+            } else {
+                Toggle(
+                    "Record POV",
+                    isOn: Binding(
+                        get: { isOn },
+                        set: onChange
+                    )
+                )
+                .labelsHidden()
+                .tint(YEETTheme.yellow)
+                .accessibilityIdentifier("yeet.pov.toggle")
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: 58)
+        .background(YEETTheme.paper, in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(YEETTheme.ink.opacity(0.16), lineWidth: 1)
+        }
+        .shadow(color: YEETTheme.ink.opacity(0.08), radius: 5, y: 3)
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -362,12 +517,21 @@ private struct HapticCaption: View {
 }
 
 private struct AirborneView: View {
+    let isRecording: Bool
+
     @ScaledMetric(relativeTo: .largeTitle) private var displaySize: CGFloat = 68
 
     var body: some View {
         YEETPage(background: YEETTheme.paper) {
             VStack(spacing: 0) {
-                Spacer(minLength: 80)
+                HStack {
+                    RecordingBadge()
+                        .opacity(isRecording ? 1 : 0)
+                    Spacer()
+                }
+                .padding(.top, 18)
+
+                Spacer(minLength: 56)
 
                 VStack(spacing: 2) {
                     Text("AIRBORNE")
@@ -388,14 +552,39 @@ private struct AirborneView: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Airborne.")
+        .accessibilityLabel(isRecording ? "Airborne. POV recording." : "Airborne.")
         .accessibilityIdentifier("yeet.state.airborne")
+    }
+}
+
+private struct RecordingBadge: View {
+    var body: some View {
+        HStack(spacing: 7) {
+            Circle()
+                .fill(Color.red)
+                .frame(width: 9, height: 9)
+
+            Text("RECORDING")
+                .font(.caption2.weight(.black))
+                .tracking(0.55)
+                .foregroundStyle(YEETTheme.ink)
+        }
+        .padding(.horizontal, 11)
+        .frame(height: 30)
+        .background(YEETTheme.paper.opacity(0.92), in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(YEETTheme.ink.opacity(0.12), lineWidth: 1)
+        }
+        .accessibilityHidden(true)
     }
 }
 
 private struct ResultView: View {
     let result: DetectionResult
+    let povState: POVCaptureState
     let onStartAgain: () -> Void
+    let onViewPOV: (URL) -> Void
     var isEnabled = true
 
     @ScaledMetric(relativeTo: .largeTitle) private var resultSize: CGFloat = 104
@@ -431,7 +620,7 @@ private struct ResultView: View {
                     .foregroundStyle(YEETTheme.muted)
                     .padding(.top, -2)
 
-                Spacer(minLength: 120)
+                Spacer(minLength: 86)
 
                 YEETPrimaryButton(title: "YEET AGAIN", action: onStartAgain)
                     .disabled(!isEnabled)
@@ -439,10 +628,36 @@ private struct ResultView: View {
                         isEnabled ? "Starts a new airtime measurement" : "Countdown starting"
                     )
                     .accessibilityIdentifier("yeet.startAgain")
-                    .padding(.bottom, 34)
+
+                povAction
             }
         }
         .accessibilityIdentifier(isEnabled ? "yeet.state.result" : "yeet.state.preparing.result")
+    }
+
+    @ViewBuilder
+    private var povAction: some View {
+        switch povState {
+        case .finalizing:
+            YEETSecondaryButton(title: "PROCESSING POV…", action: {})
+                .disabled(true)
+                .accessibilityIdentifier("yeet.pov.processing")
+                .padding(.top, 12)
+                .padding(.bottom, 34)
+
+        case let .available(url):
+            YEETSecondaryButton(title: "VIEW POV") {
+                onViewPOV(url)
+            }
+            .accessibilityHint("Opens the recorded point-of-view video")
+            .accessibilityIdentifier("yeet.pov.view")
+            .padding(.top, 12)
+            .padding(.bottom, 34)
+
+        default:
+            Color.clear
+                .frame(height: 34)
+        }
     }
 }
 
@@ -553,6 +768,30 @@ private struct YEETPrimaryButton: View {
     }
 }
 
+private struct YEETSecondaryButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.black))
+                .fontWidth(.compressed)
+                .foregroundStyle(YEETTheme.ink)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 48)
+                .padding(.horizontal, 22)
+                .background(YEETTheme.paper, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(YEETTheme.ink.opacity(0.16), lineWidth: 1)
+                }
+                .shadow(color: YEETTheme.ink.opacity(0.08), radius: 5, y: 3)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct YEETHeroButton: View {
     let action: () -> Void
 
@@ -658,6 +897,188 @@ private struct NoYeetMark: View {
     }
 }
 
+private struct POVReplayView: View {
+    let url: URL
+    let result: DetectionResult
+    let onDone: () -> Void
+
+    @State private var player: AVPlayer
+    @State private var isPlaying = false
+
+    init(url: URL, result: DetectionResult, onDone: @escaping () -> Void) {
+        self.url = url
+        self.result = result
+        self.onDone = onDone
+        _player = State(initialValue: AVPlayer(url: url))
+    }
+
+    private var formattedAirtime: String {
+        result.airtime.formatted(.number.precision(.fractionLength(2)))
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            POVPlayerSurface(player: player)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: togglePlayback)
+
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.55),
+                    Color.clear,
+                    Color.black.opacity(0.72)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("\(formattedAirtime)s")
+                            .font(.system(size: 46, weight: .black, design: .default))
+                            .fontWidth(.compressed)
+                            .monospacedDigit()
+
+                        Text("AIRTIME")
+                            .font(.caption.weight(.black))
+                            .tracking(1.2)
+                            .opacity(0.78)
+                    }
+
+                    Spacer()
+
+                    Text("YEET")
+                        .font(.system(size: 34, weight: .black, design: .default))
+                        .fontWidth(.compressed)
+                        .italic()
+                        .rotationEffect(.degrees(-3))
+                }
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+
+                Spacer()
+
+                if !isPlaying {
+                    Button(action: playFromStart) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(Color.black)
+                            .offset(x: 2)
+                            .frame(width: 82, height: 82)
+                            .background(Color.white.opacity(0.94), in: Circle())
+                            .shadow(color: Color.black.opacity(0.28), radius: 12, y: 6)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Play POV video")
+                }
+
+                Spacer()
+
+                HStack(spacing: 12) {
+                    Button("DONE", action: onDone)
+                        .buttonStyle(POVReplayButtonStyle(isPrimary: false))
+
+                    Button("WATCH AGAIN", action: playFromStart)
+                        .buttonStyle(POVReplayButtonStyle(isPrimary: true))
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 18)
+            }
+        }
+        .statusBarHidden(true)
+        .onAppear {
+            player.actionAtItemEnd = .pause
+            player.seek(to: .zero)
+        }
+        .onDisappear {
+            player.pause()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .AVPlayerItemDidPlayToEndTime)
+        ) { notification in
+            guard notification.object as? AVPlayerItem === player.currentItem else { return }
+            isPlaying = false
+            player.seek(to: .zero)
+        }
+        .accessibilityIdentifier("yeet.pov.replay")
+    }
+
+    private func togglePlayback() {
+        if isPlaying {
+            player.pause()
+            isPlaying = false
+        } else {
+            player.play()
+            isPlaying = true
+        }
+    }
+
+    private func playFromStart() {
+        player.seek(to: .zero) { _ in
+            player.play()
+        }
+        isPlaying = true
+    }
+}
+
+private struct POVReplayButtonStyle: ButtonStyle {
+    let isPrimary: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.black))
+            .fontWidth(.compressed)
+            .foregroundStyle(isPrimary ? Color.black : Color.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(
+                isPrimary ? YEETTheme.yellow : Color.black.opacity(0.42),
+                in: Capsule()
+            )
+            .overlay {
+                Capsule()
+                    .stroke(Color.white.opacity(isPrimary ? 0 : 0.8), lineWidth: 1)
+            }
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+    }
+}
+
+private struct POVPlayerSurface: UIViewRepresentable {
+    let player: AVPlayer
+
+    func makeUIView(context: Context) -> PlayerView {
+        let view = PlayerView()
+        view.playerLayer.videoGravity = .resizeAspectFill
+        view.playerLayer.player = player
+        return view
+    }
+
+    func updateUIView(_ uiView: PlayerView, context: Context) {
+        uiView.playerLayer.player = player
+    }
+
+    static func dismantleUIView(_ uiView: PlayerView, coordinator: ()) {
+        uiView.playerLayer.player = nil
+    }
+
+    final class PlayerView: UIView {
+        override class var layerClass: AnyClass {
+            AVPlayerLayer.self
+        }
+
+        var playerLayer: AVPlayerLayer {
+            layer as! AVPlayerLayer
+        }
+    }
+}
+
 #if DEBUG
 private struct DebugPanel: View {
     let snapshot: DebugSnapshot
@@ -702,6 +1123,7 @@ private struct DebugPanel: View {
 }
 #endif
 
+#if DEBUG
 #Preview("Idle") {
     YEETScreen(state: .idle, onStart: {}, onStartAgain: {})
         .preferredColorScheme(.light)
@@ -759,3 +1181,4 @@ private struct DebugPanel: View {
     YEETScreen(state: .invalid(.tooShort), onStart: {}, onStartAgain: {})
         .preferredColorScheme(.light)
 }
+#endif
