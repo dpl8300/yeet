@@ -30,6 +30,8 @@
 		A20000000000000000000015 /* AccountViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000018 /* AccountViews.swift */; };
 		A20000000000000000000016 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = AB0000000000000000000001 /* Supabase */; };
 		A20000000000000000000017 /* YEETAppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000001B /* YEETAppModelTests.swift */; };
+		A20000000000000000000018 /* SocialVideoSharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000001C /* SocialVideoSharing.swift */; };
+		A20000000000000000000019 /* SocialVideoSharingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000001D /* SocialVideoSharingTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +72,8 @@
 		A30000000000000000000019 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		A3000000000000000000001A /* YEET.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = YEET.entitlements; sourceTree = "<group>"; };
 		A3000000000000000000001B /* YEETAppModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YEETAppModelTests.swift; sourceTree = "<group>"; };
+		A3000000000000000000001C /* SocialVideoSharing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialVideoSharing.swift; sourceTree = "<group>"; };
+		A3000000000000000000001D /* SocialVideoSharingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialVideoSharingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -171,6 +175,7 @@
 			isa = PBXGroup;
 			children = (
 				A30000000000000000000012 /* POVCaptureService.swift */,
+				A3000000000000000000001C /* SocialVideoSharing.swift */,
 			);
 			path = POV;
 			sourceTree = "<group>";
@@ -215,6 +220,7 @@
 				A3000000000000000000000C /* AirtimeDetectorTests.swift */,
 				A3000000000000000000000D /* YEETViewModelTests.swift */,
 				A3000000000000000000001B /* YEETAppModelTests.swift */,
+				A3000000000000000000001D /* SocialVideoSharingTests.swift */,
 			);
 			path = YEETTests;
 			sourceTree = "<group>";
@@ -343,6 +349,7 @@
 				A20000000000000000000002 /* ContentView.swift in Sources */,
 				A20000000000000000000003 /* YEETViewModel.swift in Sources */,
 				A2000000000000000000000F /* POVCaptureService.swift in Sources */,
+				A20000000000000000000018 /* SocialVideoSharing.swift in Sources */,
 				A20000000000000000000004 /* MotionSample.swift in Sources */,
 				A20000000000000000000005 /* DetectionConfig.swift in Sources */,
 				A20000000000000000000006 /* DetectionState.swift in Sources */,
@@ -361,6 +368,7 @@
 				A2000000000000000000000C /* AirtimeDetectorTests.swift in Sources */,
 				A2000000000000000000000D /* YEETViewModelTests.swift in Sources */,
 				A20000000000000000000017 /* YEETAppModelTests.swift in Sources */,
+				A20000000000000000000019 /* SocialVideoSharingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -9,7 +9,7 @@ struct DetectionConfig: Equatable, Sendable {
     let landingConfirmationSamples: Int
     let landingConfirmationDuration: TimeInterval
     let minimumAirtime: TimeInterval
-    let maximumAirtime: TimeInterval
+    let maximumAirtime: TimeInterval?
     let armedTimeout: TimeInterval
     let maximumInFlightSampleGap: TimeInterval
     let diagnosticImpactThresholdG: Double
@@ -25,7 +25,7 @@ struct DetectionConfig: Equatable, Sendable {
         landingConfirmationSamples: 3,
         landingConfirmationDuration: 0.02,
         minimumAirtime: 0.12,
-        maximumAirtime: 3.0,
+        maximumAirtime: nil,
         armedTimeout: 15.0,
         maximumInFlightSampleGap: 0.05,
         diagnosticImpactThresholdG: 1.50,

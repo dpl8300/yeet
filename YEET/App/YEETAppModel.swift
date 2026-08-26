@@ -18,6 +18,7 @@ final class YEETAppModel: ObservableObject {
     private var pendingScore: PendingScore?
     private var submittingAttemptID: UUID?
     private var leaderboardRequestID: UUID?
+    private var authenticationRequestID: UUID?
 
     convenience init(configuration: BackendConfiguration? = .load()) {
         guard let configuration else {
@@ -86,7 +87,11 @@ final class YEETAppModel: ObservableObject {
             scoreTask = Task { [weak self] in await self?.submitPendingScore() }
         case .unavailable:
             resultCloudState = .unavailable
-        case .checking, .signedOut, .needsHandle:
+        case .checking:
+            // Session restoration owns the next step. Do not start a guest
+            // estimate that can race the authenticated profile request.
+            resultCloudState = .checkingAccount
+        case .signedOut, .needsHandle:
             scoreTask = Task { [weak self] in await self?.estimateRank(for: pending) }
         }
     }
@@ -210,10 +215,17 @@ final class YEETAppModel: ObservableObject {
         switch accountState {
         case .signedIn:
             scoreTask = Task { [weak self] in await self?.submitPendingScore() }
-        case .signedOut, .needsHandle, .checking:
+        case .signedOut, .needsHandle:
             scoreTask = Task { [weak self] in
                 guard let pending = self?.pendingScore else { return }
                 await self?.estimateRank(for: pending)
+            }
+        case .checking:
+            resultCloudState = .checkingAccount
+            guard let authService else { return }
+            scoreTask = Task { [weak self, authService] in
+                let userID = await authService.currentUserID()
+                await self?.applyAuthenticatedUser(userID)
             }
         case .unavailable:
             resultCloudState = .unavailable
@@ -221,23 +233,38 @@ final class YEETAppModel: ObservableObject {
     }
 
     private func applyAuthenticatedUser(_ userID: UUID?) async {
-        guard leaderboardService != nil else {
+        guard let leaderboardService else {
             accountState = .unavailable
             leaderboardState = .unavailable
             return
         }
 
+        let requestID = UUID()
+        authenticationRequestID = requestID
+
         guard let userID else {
             accountState = .signedOut
             leaderboardState = .loading(cached: nil)
             await refreshLeaderboard(candidateAirtimeMilliseconds: nil, marksLoading: false)
+            guard authenticationRequestID == requestID else { return }
+            if let pending = pendingScore {
+                scoreTask?.cancel()
+                scoreTask = Task { [weak self] in await self?.estimateRank(for: pending) }
+            }
             return
         }
 
         accountState = .checking
-        await refreshLeaderboard(candidateAirtimeMilliseconds: nil, marksLoading: false)
-        switch leaderboardState {
-        case let .loaded(snapshot):
+        if pendingScore != nil {
+            resultCloudState = .checkingAccount
+        }
+
+        do {
+            let snapshot = try await leaderboardService.snapshot(
+                candidateAirtimeMilliseconds: nil
+            )
+            guard authenticationRequestID == requestID else { return }
+            leaderboardState = .loaded(snapshot)
             if let currentUser = snapshot.currentUser,
                currentUser.userID == userID {
                 accountState = .signedIn(userID: userID, handle: currentUser.handle)
@@ -247,12 +274,23 @@ final class YEETAppModel: ObservableObject {
             } else {
                 accountState = .needsHandle(userID: userID)
                 isAccountPresented = true
+                if let pending = pendingScore {
+                    scoreTask?.cancel()
+                    scoreTask = Task { [weak self] in await self?.estimateRank(for: pending) }
+                }
             }
-        case .failed:
+        } catch {
+            guard authenticationRequestID == requestID else { return }
+            leaderboardState = .failed(
+                message: userMessage(for: error),
+                cached: leaderboardState.snapshot
+            )
             accountState = .checking
-            accountActionError = "Couldn’t check your profile. Please try again."
-        case .unavailable, .loading:
-            accountState = .checking
+            let message = "Couldn’t check your profile. Please try again."
+            accountActionError = message
+            if pendingScore != nil {
+                resultCloudState = .failed(message: message)
+            }
         }
     }
 
@@ -264,17 +302,31 @@ final class YEETAppModel: ObservableObject {
             marksLoading: false
         )
         guard pendingScore?.attemptID == pending.attemptID else { return }
-        if case .signedIn = accountState { return }
+        if case .signedIn = accountState {
+            await submitPendingScore()
+            return
+        }
         switch leaderboardState {
         case let .loaded(snapshot):
-            resultCloudState = .guest(rank: snapshot.candidateRank)
+            if case .needsHandle = accountState {
+                resultCloudState = .needsHandle(rank: snapshot.candidateRank)
+            } else {
+                resultCloudState = .guest(rank: snapshot.candidateRank)
+            }
         case .failed:
-            resultCloudState = .guest(rank: nil)
+            resultCloudState = resultStateWithoutSavedProfile(rank: nil)
         case .unavailable:
             resultCloudState = .unavailable
         case .loading:
-            resultCloudState = .guest(rank: nil)
+            resultCloudState = resultStateWithoutSavedProfile(rank: nil)
         }
+    }
+
+    private func resultStateWithoutSavedProfile(rank: Int?) -> ResultCloudState {
+        if case .needsHandle = accountState {
+            return .needsHandle(rank: rank)
+        }
+        return .guest(rank: rank)
     }
 
     private func submitPendingScore() async {

@@ -46,7 +46,7 @@ final class YEETAppModelTests: XCTestCase {
 
         model.start()
         await waitUntil { model.accountState == .signedOut }
-        model.handleDetectionTransition(from: .airborne, to: .result(Self.result))
+        model.handleDetectionTransition(from: .airborne(startTimestamp: 1), to: .result(Self.result))
         await waitUntil { model.resultCloudState == .guest(rank: 27) }
 
         XCTAssertEqual(leaderboard.snapshotCandidates.last, 1_420)
@@ -63,7 +63,7 @@ final class YEETAppModelTests: XCTestCase {
 
         model.start()
         await waitUntil { model.accountState == .signedOut }
-        model.handleDetectionTransition(from: .airborne, to: .result(Self.result))
+        model.handleDetectionTransition(from: .airborne(startTimestamp: 1), to: .result(Self.result))
         await waitUntil {
             if case .guest = model.resultCloudState { return true }
             return false
@@ -87,11 +87,35 @@ final class YEETAppModelTests: XCTestCase {
 
         model.start()
         await waitUntil { model.accountState == .signedIn(userID: userID, handle: "orbit") }
-        model.handleDetectionTransition(from: .airborne, to: .result(Self.result))
+        model.handleDetectionTransition(from: .airborne(startTimestamp: 1), to: .result(Self.result))
         model.handleDetectionTransition(from: .result(Self.result), to: .result(Self.result))
         await waitUntil { model.resultCloudState.isSaved }
 
         XCTAssertEqual(leaderboard.submissions.count, 1)
+    }
+
+    func testResultWaitsForSignedInSessionRestorationInsteadOfBecomingGuest() async {
+        let userID = UUID()
+        let auth = MockAuthenticationService(currentUserID: userID)
+        let leaderboard = MockLeaderboardService(
+            currentUser: entry(userID: userID, handle: "restored")
+        )
+        let model = YEETAppModel(authService: auth, leaderboardService: leaderboard)
+
+        model.start()
+        model.handleDetectionTransition(
+            from: .airborne(startTimestamp: 1),
+            to: .result(Self.result)
+        )
+
+        XCTAssertEqual(model.resultCloudState, .checkingAccount)
+        await waitUntil { model.resultCloudState.isSaved }
+        XCTAssertEqual(model.accountState, .signedIn(userID: userID, handle: "restored"))
+        XCTAssertEqual(leaderboard.submissions.count, 1)
+        XCTAssertFalse(
+            leaderboard.snapshotCandidates.contains(where: { $0 != nil }),
+            "A restoring signed-in session must not launch a guest candidate request"
+        )
     }
 
     func testFailedSaveRetriesWithSameIdempotencyID() async {
@@ -103,7 +127,7 @@ final class YEETAppModelTests: XCTestCase {
 
         model.start()
         await waitUntil { model.accountState == .signedIn(userID: userID, handle: "retry") }
-        model.handleDetectionTransition(from: .airborne, to: .result(Self.result))
+        model.handleDetectionTransition(from: .airborne(startTimestamp: 1), to: .result(Self.result))
         await waitUntil {
             if case .failed = model.resultCloudState { return true }
             return false
@@ -130,7 +154,7 @@ final class YEETAppModelTests: XCTestCase {
         auth.currentUser = userID
         auth.emit(userID)
         await waitUntil { model.accountState == .signedIn(userID: userID, handle: "cleanup") }
-        model.handleDetectionTransition(from: .airborne, to: .result(Self.result))
+        model.handleDetectionTransition(from: .airborne(startTimestamp: 1), to: .result(Self.result))
         let deleted = await model.deleteAccount(authorizationCode: "fresh-code")
 
         XCTAssertTrue(deleted)

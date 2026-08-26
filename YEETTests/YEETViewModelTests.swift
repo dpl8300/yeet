@@ -5,22 +5,14 @@ import XCTest
 final class YEETViewModelTests: XCTestCase {
     func testCountdownAdvancesInOrderAndArmsOnlyOnLaunch() async {
         let service = MockMotionService()
-        let preCountdownSleeper = ManualCountdownSleeper()
         let stepSleeper = ManualCountdownSleeper()
         let launchRenderSleeper = ManualCountdownSleeper()
         let viewModel = YEETViewModel(
-            preCountdownSleep: { try await preCountdownSleeper.sleep() },
             countdownSleep: { try await stepSleeper.sleep() },
             launchRenderSleep: { try await launchRenderSleeper.sleep() },
             motionServiceFactory: { service }
         )
-
         viewModel.start()
-        XCTAssertEqual(viewModel.state, .preparing(.idle))
-        XCTAssertFalse(service.didStart)
-
-        await preCountdownSleeper.advance()
-        await wait(for: .countdown(.three), in: viewModel)
         XCTAssertEqual(viewModel.state, .countdown(.three))
         XCTAssertFalse(service.didStart)
 
@@ -41,38 +33,9 @@ final class YEETViewModelTests: XCTestCase {
         XCTAssertTrue(service.didStart)
     }
 
-    func testCountdownHapticsAreUniqueAndProgressivelyStronger() {
-        let transitions: [(YEETViewState, YEETViewState, YEETHapticCue)] = [
-            (.preparing(.idle), .countdown(.three), .light),
-            (.countdown(.three), .countdown(.two), .medium),
-            (.countdown(.two), .countdown(.one), .strong),
-            (.countdown(.one), .waiting, .launch)
-        ]
-
-        for (oldState, newState, expectedCue) in transitions {
-            XCTAssertEqual(
-                YEETHapticCue.forTransition(from: oldState, to: newState),
-                expectedCue
-            )
-        }
-
-        let intensities = YEETHapticCue.allCases.map(\.intensity)
-        XCTAssertEqual(Set(intensities).count, YEETHapticCue.allCases.count)
-        for pair in zip(intensities, intensities.dropFirst()) {
-            XCTAssertLessThan(pair.0, pair.1)
-        }
-
-        let durations = YEETHapticCue.allCases.map(\.duration)
-        XCTAssertEqual(Set(durations).count, YEETHapticCue.allCases.count)
-        for pair in zip(durations, durations.dropFirst()) {
-            XCTAssertLessThan(pair.0, pair.1)
-        }
-    }
-
     func testStartAndSuccessfulResultFlow() async {
         let service = MockMotionService()
         let viewModel = YEETViewModel(
-            preCountdownSleep: {},
             countdownSleep: {},
             launchRenderSleep: {},
             motionServiceFactory: { service }
@@ -86,7 +49,7 @@ final class YEETViewModelTests: XCTestCase {
             service.emit(sample(at: timestamp, magnitude: 0.1))
         }
         await settle()
-        XCTAssertEqual(viewModel.state, .airborne)
+        XCTAssertEqual(viewModel.state, .airborne(startTimestamp: 1.0))
 
         for hundredth in 4...19 {
             service.emit(
@@ -105,13 +68,12 @@ final class YEETViewModelTests: XCTestCase {
         XCTAssertTrue(service.didStop)
 
         viewModel.startAgain()
-        XCTAssertEqual(viewModel.state, .preparing(.result(result)))
+        XCTAssertEqual(viewModel.state, .countdown(.three))
     }
 
     func testUnavailableSensorMapsToInvalidState() async {
         let service = MockMotionService()
         let viewModel = YEETViewModel(
-            preCountdownSleep: {},
             countdownSleep: {},
             launchRenderSleep: {},
             motionServiceFactory: { service }
@@ -128,7 +90,6 @@ final class YEETViewModelTests: XCTestCase {
     func testSensorUpdateErrorMapsToInvalidState() async {
         let service = MockMotionService()
         let viewModel = YEETViewModel(
-            preCountdownSleep: {},
             countdownSleep: {},
             launchRenderSleep: {},
             motionServiceFactory: { service }
@@ -148,7 +109,6 @@ final class YEETViewModelTests: XCTestCase {
         let second = MockMotionService()
         var services = [first, second]
         let viewModel = YEETViewModel(
-            preCountdownSleep: {},
             countdownSleep: {},
             launchRenderSleep: {},
             motionServiceFactory: { services.removeFirst() }
@@ -161,10 +121,7 @@ final class YEETViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.state, .invalid(.sensorUnavailable))
 
         viewModel.startAgain()
-        XCTAssertEqual(
-            viewModel.state,
-            .preparing(.invalid(.sensorUnavailable))
-        )
+        XCTAssertEqual(viewModel.state, .countdown(.three))
         await settle()
         XCTAssertEqual(viewModel.state, .waiting)
         XCTAssertTrue(first.didStop)
@@ -174,7 +131,6 @@ final class YEETViewModelTests: XCTestCase {
     func testInactiveAppInvalidatesActiveSession() async {
         let service = MockMotionService()
         let viewModel = YEETViewModel(
-            preCountdownSleep: {},
             countdownSleep: {},
             launchRenderSleep: {},
             motionServiceFactory: { service }
@@ -190,16 +146,15 @@ final class YEETViewModelTests: XCTestCase {
 
     func testInactiveAppCancelsPreparationWithoutStartingMotion() async {
         let service = MockMotionService()
-        let preCountdownSleeper = ManualCountdownSleeper()
+        let stepSleeper = ManualCountdownSleeper()
         let viewModel = YEETViewModel(
-            preCountdownSleep: { try await preCountdownSleeper.sleep() },
-            countdownSleep: {},
+            countdownSleep: { try await stepSleeper.sleep() },
             launchRenderSleep: {},
             motionServiceFactory: { service }
         )
 
         viewModel.start()
-        XCTAssertEqual(viewModel.state, .preparing(.idle))
+        XCTAssertEqual(viewModel.state, .countdown(.three))
 
         viewModel.handleScenePhase(.inactive)
         await settle()
@@ -228,14 +183,16 @@ final class YEETViewModelTests: XCTestCase {
         await waitUntil { capture.cleanUpCallCount == 1 }
     }
 
-    func testPOVDefaultsOnWhenRequiredPermissionsAreAuthorized() async {
+    func testPOVRestoresPersistedSelectionOnlyOnce() async {
         let capture = MockPOVCaptureService()
+        var storedPreference = true
         let viewModel = YEETViewModel(
             povCaptureServiceFactory: { capture },
-            povPermissionsAuthorized: { true }
+            readPOVPreference: { storedPreference },
+            writePOVPreference: { storedPreference = $0 }
         )
 
-        viewModel.enablePOVByDefaultIfAuthorized()
+        viewModel.restorePOVPreference()
         await waitForPOVState(.ready, in: viewModel)
 
         XCTAssertTrue(viewModel.isPOVEnabled)
@@ -243,18 +200,22 @@ final class YEETViewModelTests: XCTestCase {
 
         viewModel.setPOVEnabled(false)
         await waitUntil { capture.cleanUpCallCount == 1 }
-        viewModel.enablePOVByDefaultIfAuthorized()
+        viewModel.restorePOVPreference()
 
         XCTAssertFalse(viewModel.isPOVEnabled)
+        XCTAssertFalse(storedPreference)
         XCTAssertEqual(viewModel.povState, .disabled)
         XCTAssertEqual(capture.prepareCallCount, 1)
     }
 
-    func testDeniedPOVPermissionDisablesToggleAndOffersSettings() async {
+    func testDeniedPOVPermissionKeepsSelectionAndRecoversAfterSettings() async {
         let capture = MockPOVCaptureService()
         capture.prepareError = POVCaptureError.permissionDenied(.camera)
+        var storedPreference = false
         let viewModel = YEETViewModel(
-            povCaptureServiceFactory: { capture }
+            povCaptureServiceFactory: { capture },
+            readPOVPreference: { storedPreference },
+            writePOVPreference: { storedPreference = $0 }
         )
 
         viewModel.setPOVEnabled(true)
@@ -263,10 +224,17 @@ final class YEETViewModelTests: XCTestCase {
             in: viewModel
         )
 
-        XCTAssertFalse(viewModel.isPOVEnabled)
+        XCTAssertTrue(viewModel.isPOVEnabled)
+        XCTAssertTrue(storedPreference)
+        XCTAssertTrue(viewModel.canStart)
         XCTAssertEqual(viewModel.povAlert?.title, "POV Recording Unavailable")
         XCTAssertEqual(viewModel.povAlert?.offersSettings, true)
         await waitUntil { capture.cleanUpCallCount == 1 }
+
+        capture.prepareError = nil
+        viewModel.restorePOVPreference()
+        await waitForPOVState(.ready, in: viewModel)
+        XCTAssertEqual(capture.prepareCallCount, 2)
     }
 
     func testPOVRecordingStartsBeforeMotionAndFinalizesSuccessfulResult() async {
@@ -274,7 +242,6 @@ final class YEETViewModelTests: XCTestCase {
         let motion = MockMotionService(orderRecorder: order)
         let capture = MockPOVCaptureService(orderRecorder: order)
         let viewModel = YEETViewModel(
-            preCountdownSleep: {},
             countdownSleep: {},
             launchRenderSleep: {},
             motionServiceFactory: { motion },
@@ -303,13 +270,17 @@ final class YEETViewModelTests: XCTestCase {
         XCTAssertEqual(capture.stopCallCount, 1)
         XCTAssertEqual(viewModel.povVideoURL, capture.outputURL)
         XCTAssertTrue(viewModel.isPOVEnabled)
+        XCTAssertTrue(viewModel.canStart)
+
+        viewModel.releaseAttemptPOV()
+        XCTAssertNil(viewModel.povVideoURL)
+        XCTAssertEqual(viewModel.povState, .ready)
     }
 
     func testInvalidAttemptDiscardsPOVAndKeepsPreferenceReadyForRetry() async {
         let motion = MockMotionService()
         let capture = MockPOVCaptureService()
         let viewModel = YEETViewModel(
-            preCountdownSleep: {},
             countdownSleep: {},
             launchRenderSleep: {},
             motionServiceFactory: { motion },
@@ -335,7 +306,6 @@ final class YEETViewModelTests: XCTestCase {
         let motion = MockMotionService()
         let capture = MockPOVCaptureService()
         let viewModel = YEETViewModel(
-            preCountdownSleep: {},
             countdownSleep: {},
             launchRenderSleep: {},
             motionServiceFactory: { motion },
@@ -360,7 +330,6 @@ final class YEETViewModelTests: XCTestCase {
         let capture = MockPOVCaptureService()
         capture.startError = POVCaptureError.recordingFailed("synthetic failure")
         let viewModel = YEETViewModel(
-            preCountdownSleep: {},
             countdownSleep: {},
             launchRenderSleep: {},
             motionServiceFactory: { motion },
@@ -373,7 +342,8 @@ final class YEETViewModelTests: XCTestCase {
         await wait(for: .waiting, in: viewModel)
         await waitUntil { motion.didStart }
 
-        XCTAssertFalse(viewModel.isPOVEnabled)
+        XCTAssertTrue(viewModel.isPOVEnabled)
+        XCTAssertTrue(viewModel.canStart)
         XCTAssertEqual(
             viewModel.povState,
             .failed(.recordingFailed("synthetic failure"))
@@ -390,7 +360,6 @@ final class YEETViewModelTests: XCTestCase {
         let motion = MockMotionService()
         var captureFactoryCallCount = 0
         let viewModel = YEETViewModel(
-            preCountdownSleep: {},
             countdownSleep: {},
             launchRenderSleep: {},
             motionServiceFactory: { motion },

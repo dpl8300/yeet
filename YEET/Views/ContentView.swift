@@ -6,37 +6,34 @@ import UIKit
 
 struct ContentView: View {
     @Environment(\.openURL) private var openURL
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("yeet.onboarding.completed") private var hasCompletedOnboarding = false
     @StateObject private var hapticPlayer = YEETHapticPlayer()
     @StateObject private var viewModel = YEETViewModel()
     @StateObject private var appModel = YEETAppModel()
     @State private var replayPresentation: POVReplayPresentation?
+    @State private var phase: YEETExperiencePhase = .home
+    @State private var attempt: AttemptPresentation?
+    @State private var catchTask: Task<Void, Never>?
+    @State private var rankTask: Task<Void, Never>?
+    @State private var celebratedAttemptID: UUID?
 
     var body: some View {
-        YEETScreen(
-            state: viewModel.state,
-            isPOVEnabled: viewModel.isPOVEnabled,
-            povState: viewModel.povState,
-            canStart: viewModel.canStart,
-            canStartAgain: viewModel.canStartAgain,
-            isPOVRecording: viewModel.isPOVRecording,
-            leaderboardState: appModel.leaderboardState,
-            accountState: appModel.accountState,
-            resultCloudState: appModel.resultCloudState,
-            onStart: viewModel.start,
-            onStartAgain: viewModel.startAgain,
-            onPOVChange: viewModel.setPOVEnabled,
-            onOpenAccount: appModel.presentAccount,
-            onRetryScore: appModel.retryScore,
-            onRefreshLeaderboard: appModel.refreshLeaderboard,
-            onViewPOV: { url, result in
-                replayPresentation = POVReplayPresentation(url: url, result: result)
-            }
-        )
+        ZStack {
+            experience
+        }
         .onChange(of: viewModel.state) { oldState, newState in
-            appModel.handleDetectionTransition(from: oldState, to: newState)
-            if let cue = YEETHapticCue.forTransition(from: oldState, to: newState) {
-                hapticPlayer.play(cue)
+            handleDetectionTransition(from: oldState, to: newState)
+        }
+        .onChange(of: appModel.resultCloudState) { _, newState in
+            handleCloudTransition(newState)
+        }
+        .onChange(of: viewModel.povState) { _, newState in
+            if case let .available(url) = newState {
+                attempt?.povURL = url
+            } else if newState != .finalizing {
+                attempt?.povURL = nil
             }
         }
 #if DEBUG
@@ -50,12 +47,15 @@ struct ContentView: View {
 #endif
         .preferredColorScheme(.light)
         .fullScreenCover(item: $replayPresentation) { replay in
-            POVReplayView(url: replay.url, result: replay.result) {
+            POVReplayView(url: replay.url, context: replay.context) {
                 replayPresentation = nil
             }
         }
         .sheet(isPresented: $appModel.isAccountPresented) {
-            AccountSheet(appModel: appModel)
+            AccountSheet(appModel: appModel) {
+                appModel.isAccountPresented = false
+                phase = .tutorial
+            }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -82,17 +82,197 @@ struct ContentView: View {
         }
         .onAppear {
             appModel.start()
-            viewModel.enablePOVByDefaultIfAuthorized()
+            viewModel.restorePOVPreference()
             hapticPlayer.prepare()
+            if !hasCompletedOnboarding {
+                phase = .tutorial
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             viewModel.handleScenePhase(newPhase)
             if newPhase == .active {
                 appModel.sceneBecameActive()
-                viewModel.enablePOVByDefaultIfAuthorized()
+                viewModel.restorePOVPreference()
                 hapticPlayer.prepare()
             } else {
                 hapticPlayer.stop()
+            }
+        }
+        .onDisappear {
+            catchTask?.cancel()
+            rankTask?.cancel()
+            viewModel.cleanUp()
+        }
+    }
+
+    @ViewBuilder
+    private var experience: some View {
+        switch phase {
+        case .tutorial:
+            TutorialView {
+                hasCompletedOnboarding = true
+                phase = .home
+            }
+
+        case .home:
+            IdleView(
+                isPOVEnabled: viewModel.isPOVEnabled,
+                povState: viewModel.povState,
+                leaderboardState: appModel.leaderboardState,
+                accountState: appModel.accountState,
+                onStart: startFromHome,
+                onPOVChange: viewModel.setPOVEnabled,
+                onOpenAccount: appModel.presentAccount,
+                onRefreshLeaderboard: appModel.refreshLeaderboard,
+                isEnabled: viewModel.canStart
+            )
+
+        case .measuring:
+            YEETScreen(
+                state: viewModel.state,
+                isPOVRecording: viewModel.isPOVRecording
+            )
+
+        case .catching:
+            if let attempt {
+                CatchView(result: attempt.result, showsConfetti: !reduceMotion)
+            }
+
+        case .rankUp:
+            if let attempt, case let .saved(saved) = appModel.resultCloudState {
+                RankUpView(
+                    previousRank: attempt.previousRank,
+                    newRank: saved.rank,
+                    showsMotion: !reduceMotion
+                )
+            }
+
+        case let .result(kind):
+            if let attempt {
+                ResultView(
+                    kind: kind,
+                    presentation: attempt,
+                    povState: viewModel.povState,
+                    onStartAgain: startAgain,
+                    onViewLeaderboard: showHome,
+                    onViewPOV: presentPOV,
+                    onOpenAccount: appModel.presentAccount,
+                    onRetryScore: appModel.retryScore,
+                    isEnabled: viewModel.canStartAgain
+                )
+            }
+
+        case .invalid:
+            InvalidView(onStartAgain: startAgain, isEnabled: viewModel.canStartAgain)
+        }
+    }
+
+    private func startFromHome() {
+        guard viewModel.canStart else { return }
+        attempt = nil
+        celebratedAttemptID = nil
+        phase = .measuring
+        viewModel.start()
+    }
+
+    private func startAgain() {
+        guard viewModel.canStartAgain else { return }
+        catchTask?.cancel()
+        rankTask?.cancel()
+        attempt = nil
+        celebratedAttemptID = nil
+        phase = .measuring
+        viewModel.startAgain()
+    }
+
+    private func showHome() {
+        catchTask?.cancel()
+        rankTask?.cancel()
+        viewModel.releaseAttemptPOV()
+        attempt = nil
+        phase = .home
+        Task { await appModel.refreshLeaderboard() }
+    }
+
+    private func presentPOV(_ url: URL) {
+        guard let attempt else { return }
+        replayPresentation = POVReplayPresentation(
+            url: url,
+            context: ShareVideoContext(
+                result: attempt.result,
+                rank: attempt.newRank,
+                candidateRank: attempt.candidateRank
+            )
+        )
+    }
+
+    private func handleDetectionTransition(from oldState: YEETViewState, to newState: YEETViewState) {
+        if case let .result(result) = newState, oldState != newState {
+            let currentUser = appModel.leaderboardState.snapshot?.currentUser
+            attempt = AttemptPresentation(
+                result: result,
+                previousPersonalBestMilliseconds: currentUser?.airtimeMilliseconds,
+                previousRank: currentUser?.rank,
+                saveStatus: .idle,
+                povURL: viewModel.povVideoURL
+            )
+            appModel.handleDetectionTransition(from: oldState, to: newState)
+            attempt?.saveStatus = appModel.resultCloudState
+            phase = .catching
+            hapticPlayer.play(.catchSuccess)
+            catchTask?.cancel()
+            catchTask = Task {
+                try? await Task.sleep(for: .seconds(reduceMotion ? 0.8 : 1.5))
+                guard !Task.isCancelled else { return }
+                advanceAfterCatch()
+            }
+            return
+        }
+
+        appModel.handleDetectionTransition(from: oldState, to: newState)
+        switch newState {
+        case .countdown, .waiting, .airborne:
+            phase = .measuring
+        case .invalid:
+            phase = .invalid
+        case .idle:
+            if phase == .measuring { phase = .home }
+        case .result:
+            break
+        }
+    }
+
+    private func handleCloudTransition(_ cloudState: ResultCloudState) {
+        attempt?.saveStatus = cloudState
+        guard case let .saved(saved) = cloudState, saved.isPersonalBest else { return }
+        guard phase != .catching else { return }
+        appModel.isAccountPresented = false
+        beginRankUp(saved)
+    }
+
+    private func advanceAfterCatch() {
+        if case let .saved(saved) = appModel.resultCloudState, saved.isPersonalBest {
+            beginRankUp(saved)
+        } else {
+            phase = .result(.normal)
+        }
+    }
+
+    private func beginRankUp(_ saved: ScoreSubmissionResult) {
+        guard celebratedAttemptID != saved.attemptID else { return }
+        celebratedAttemptID = saved.attemptID
+        phase = .rankUp
+        hapticPlayer.play(.rankUp)
+        rankTask?.cancel()
+        rankTask = Task {
+            try? await Task.sleep(for: .seconds(reduceMotion ? 1.2 : 3.0))
+            guard !Task.isCancelled else { return }
+            if saved.rank == 1 {
+                phase = .result(.worldRecord)
+                hapticPlayer.play(.worldRecord)
+            } else {
+                phase = .result(.personalBest)
+                hapticPlayer.play(.personalBest)
             }
         }
     }
@@ -112,141 +292,93 @@ struct ContentView: View {
 private struct POVReplayPresentation: Identifiable {
     let id = UUID()
     let url: URL
+    let context: ShareVideoContext
+}
+
+private struct AttemptPresentation: Equatable {
     let result: DetectionResult
+    let previousPersonalBestMilliseconds: Int?
+    let previousRank: Int?
+    var saveStatus: ResultCloudState
+    var povURL: URL?
+
+    var newPersonalBestMilliseconds: Int? {
+        guard case let .saved(saved) = saveStatus else { return nil }
+        return saved.personalBestMilliseconds
+    }
+
+    var newRank: Int? { saveStatus.authoritativeRank }
+    var candidateRank: Int? { saveStatus.candidateRank }
+    var isWorldRecord: Bool { newRank == 1 }
+}
+
+private enum YEETExperiencePhase: Equatable {
+    case tutorial
+    case home
+    case measuring
+    case catching
+    case rankUp
+    case result(YEETResultKind)
+    case invalid
+}
+
+private enum YEETResultKind: Equatable {
+    case normal
+    case personalBest
+    case worldRecord
 }
 
 struct YEETScreen: View {
     let state: YEETViewState
-    var isPOVEnabled = false
-    var povState: POVCaptureState = .disabled
-    var canStart = true
-    var canStartAgain = true
     var isPOVRecording = false
-    var leaderboardState: LeaderboardLoadState = .loaded(.empty)
-    var accountState: AccountState = .signedOut
-    var resultCloudState: ResultCloudState = .idle
-    let onStart: () -> Void
-    let onStartAgain: () -> Void
-    var onPOVChange: (Bool) -> Void = { _ in }
-    var onOpenAccount: () -> Void = {}
-    var onRetryScore: () -> Void = {}
-    var onRefreshLeaderboard: () async -> Void = {}
-    var onViewPOV: (URL, DetectionResult) -> Void = { _, _ in }
 
     var body: some View {
         switch state {
-        case .idle:
-            IdleView(
-                isPOVEnabled: isPOVEnabled,
-                povState: povState,
-                leaderboardState: leaderboardState,
-                accountState: accountState,
-                onStart: onStart,
-                onPOVChange: onPOVChange,
-                onOpenAccount: onOpenAccount,
-                onRefreshLeaderboard: onRefreshLeaderboard,
-                isEnabled: canStart
-            )
-
-        case let .preparing(context):
-            switch context {
-            case .idle:
-                IdleView(
-                    isPOVEnabled: isPOVEnabled,
-                    povState: povState,
-                    leaderboardState: leaderboardState,
-                    accountState: accountState,
-                    onStart: {},
-                    onPOVChange: { _ in },
-                    onOpenAccount: {},
-                    onRefreshLeaderboard: {},
-                    isEnabled: false
-                )
-            case let .result(result):
-                ResultView(
-                    result: result,
-                    povState: povState,
-                    cloudState: .idle,
-                    onStartAgain: {},
-                    onViewPOV: { _ in },
-                    onOpenAccount: {},
-                    onRetryScore: {},
-                    isEnabled: false
-                )
-            case .invalid:
-                InvalidView(onStartAgain: {}, isEnabled: false)
-            }
-
         case let .countdown(step):
             CountdownView(step: step)
 
         case .waiting:
             WaitingView()
 
-        case .airborne:
-            AirborneView(isRecording: isPOVRecording)
+        case let .airborne(startTimestamp):
+            AirborneView(startTimestamp: startTimestamp, isRecording: isPOVRecording)
 
-        case let .result(result):
-            ResultView(
-                result: result,
-                povState: povState,
-                cloudState: resultCloudState,
-                onStartAgain: onStartAgain,
-                onViewPOV: { url in onViewPOV(url, result) },
-                onOpenAccount: onOpenAccount,
-                onRetryScore: onRetryScore,
-                isEnabled: canStartAgain
-            )
-
-        case .invalid:
-            InvalidView(onStartAgain: onStartAgain, isEnabled: canStartAgain)
+        case .idle, .result, .invalid:
+            Color.white.ignoresSafeArea()
         }
     }
 }
 
 enum YEETHapticCue: Int, CaseIterable, Equatable, Sendable {
-    case light
-    case medium
-    case strong
-    case launch
+    case catchSuccess
+    case rankUp
+    case personalBest
+    case worldRecord
 
     var intensity: Double {
         switch self {
-        case .light: 0.35
-        case .medium: 0.55
-        case .strong: 0.8
-        case .launch: 1.0
+        case .catchSuccess: 0.72
+        case .rankUp: 0.82
+        case .personalBest: 0.92
+        case .worldRecord: 1.0
         }
     }
 
     var duration: TimeInterval {
         switch self {
-        case .light: 0.14
-        case .medium: 0.22
-        case .strong: 0.30
-        case .launch: 0.42
+        case .catchSuccess: 0.22
+        case .rankUp: 0.38
+        case .personalBest: 0.48
+        case .worldRecord: 0.62
         }
     }
 
     var sharpness: Double {
         switch self {
-        case .light: 0.2
-        case .medium: 0.4
-        case .strong: 0.65
-        case .launch: 0.9
-        }
-    }
-
-    static func forTransition(
-        from oldState: YEETViewState,
-        to newState: YEETViewState
-    ) -> YEETHapticCue? {
-        switch newState {
-        case .countdown(.three): .light
-        case .countdown(.two): .medium
-        case .countdown(.one): .strong
-        case .waiting where oldState == .countdown(.one): .launch
-        default: nil
+        case .catchSuccess: 0.55
+        case .rankUp: 0.72
+        case .personalBest: 0.82
+        case .worldRecord: 0.95
         }
     }
 }
@@ -254,6 +386,7 @@ enum YEETHapticCue: Int, CaseIterable, Equatable, Sendable {
 @MainActor
 private final class YEETHapticPlayer: ObservableObject {
     private var engine: CHHapticEngine?
+    private var activePlayers: [any CHHapticPatternPlayer] = []
 
     func prepare() {
         guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return }
@@ -262,6 +395,18 @@ private final class YEETHapticPlayer: ObservableObject {
             let engine = try engine ?? CHHapticEngine()
             engine.playsHapticsOnly = true
             engine.isAutoShutdownEnabled = false
+            engine.resetHandler = { [weak self] in
+                Task { @MainActor in
+                    self?.engine = nil
+                    self?.prepare()
+                }
+            }
+            engine.stoppedHandler = { [weak self] _ in
+                Task { @MainActor in
+                    self?.engine = nil
+                    self?.activePlayers.removeAll()
+                }
+            }
             try engine.start()
             self.engine = engine
         } catch {
@@ -301,6 +446,10 @@ private final class YEETHapticPlayer: ObservableObject {
             let pattern = try CHHapticPattern(events: [event], parameters: [])
             let player = try engine.makePlayer(with: pattern)
             try player.start(atTime: CHHapticTimeImmediate)
+            activePlayers.append(player)
+            if activePlayers.count > 8 {
+                activePlayers.removeFirst(activePlayers.count - 8)
+            }
         } catch {
             playFallback(cue)
         }
@@ -309,13 +458,13 @@ private final class YEETHapticPlayer: ObservableObject {
     func stop() {
         engine?.stop(completionHandler: nil)
         engine = nil
+        activePlayers.removeAll()
     }
 
     private func playFallback(_ cue: YEETHapticCue) {
         let style: UIImpactFeedbackGenerator.FeedbackStyle = switch cue {
-        case .light: .light
-        case .medium: .medium
-        case .strong, .launch: .heavy
+        case .rankUp, .personalBest, .worldRecord: .heavy
+        case .catchSuccess: .medium
         }
         UIImpactFeedbackGenerator(style: style).impactOccurred(intensity: cue.intensity)
     }
@@ -326,6 +475,8 @@ enum YEETTheme {
     static let ink = Color(red: 0.02, green: 0.02, blue: 0.02)
     static let paper = Color.white
     static let muted = Color(red: 0.38, green: 0.38, blue: 0.38)
+    static let purple = Color(red: 0.55, green: 0.16, blue: 0.86)
+    static let orange = Color(red: 1.00, green: 0.53, blue: 0.08)
     static let pagePadding: CGFloat = 24
     static let contentWidth: CGFloat = 500
     static let strokeWidth: CGFloat = 1.5
@@ -350,7 +501,90 @@ private struct YEETPage<Content: View>: View {
     }
 }
 
+private struct TutorialView: View {
+    let onContinue: () -> Void
+
+    var body: some View {
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                Spacer(minLength: 18)
+
+                YEETWordmark(size: proxy.size.height < 700 ? 78 : 104)
+
+                Text("How long can you\nkeep your phone in the air?")
+                    .font(.headline.weight(.black))
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 12)
+
+                TossTutorialMark()
+                    .frame(width: 190, height: proxy.size.height < 700 ? 150 : 220)
+                    .padding(.top, 16)
+
+                Text("TAP → YEET → CATCH")
+                    .font(.caption.weight(.black))
+                    .tracking(0.55)
+
+                Spacer(minLength: 18)
+
+                Button("LET’S YEET", action: onContinue)
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(YEETTheme.ink, in: Capsule())
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("yeet.onboarding.continue")
+
+                Text("YEET responsibly. Use a clear, safe area and never throw toward people, animals, traffic, or anything you don’t want to hit.")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(YEETTheme.muted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 6)
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
+            }
+            .frame(maxWidth: 430, maxHeight: .infinity)
+            .padding(.horizontal, YEETTheme.pagePadding)
+            .frame(maxWidth: .infinity)
+        }
+        .background(YEETTheme.paper.ignoresSafeArea())
+        .accessibilityIdentifier("yeet.state.tutorial")
+    }
+}
+
+private struct TossTutorialMark: View {
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 15)
+                .stroke(YEETTheme.ink, lineWidth: 3)
+                .frame(width: 58, height: 104)
+                .rotationEffect(.degrees(22))
+                .offset(y: -22)
+
+            Text("0")
+                .font(.title2.weight(.black))
+                .rotationEffect(.degrees(22))
+                .offset(x: -3, y: -22)
+
+            Image(systemName: "hand.point.up.left.fill")
+                .font(.system(size: 58, weight: .regular))
+                .rotationEffect(.degrees(-18))
+                .offset(x: 55, y: 54)
+
+            ForEach(0..<3, id: \.self) { index in
+                Capsule()
+                    .fill(YEETTheme.ink)
+                    .frame(width: 3, height: 13)
+                    .rotationEffect(.degrees(Double(index * 24) - 28))
+                    .offset(x: CGFloat(index * 10) - 28, y: -84)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 private struct IdleView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let isPOVEnabled: Bool
     let povState: POVCaptureState
     let leaderboardState: LeaderboardLoadState
@@ -362,7 +596,11 @@ private struct IdleView: View {
     var isEnabled = true
 
     var body: some View {
-        YEETPage(background: YEETTheme.paper) {
+        GeometryReader { proxy in
+            let isShort = proxy.size.height < 720
+            let isAccessibility = dynamicTypeSize.isAccessibilitySize
+            let leaderCount = isAccessibility ? 1 : (isShort ? 3 : 6)
+
             VStack(spacing: 0) {
                 HStack {
                     Spacer().frame(width: 42)
@@ -380,39 +618,45 @@ private struct IdleView: View {
                     .accessibilityLabel("Account settings")
                     .accessibilityIdentifier("yeet.account.settings")
                 }
-                .padding(.top, 8)
+                .padding(.top, isShort ? 2 : 8)
 
                 PersonalBestRankCard(state: leaderboardState)
-                    .padding(.top, 18)
+                    .padding(.top, isShort ? 8 : 14)
 
-                YEETHeroButton(action: onStart)
+                YEETHeroButton(action: onStart, isCompact: isShort || isAccessibility)
                     .disabled(!isEnabled)
                     .accessibilityHint(
                         isEnabled ? "Starts listening for a phone toss" : "Countdown starting"
                     )
                     .accessibilityIdentifier("yeet.start")
-                    .padding(.top, 22)
+                    .padding(.top, isShort ? 10 : 16)
 
                 POVToggleRow(
                     isOn: isPOVEnabled,
                     isPreparing: povState == .preparing,
+                    isCompact: isShort || isAccessibility,
                     onChange: onPOVChange
                 )
                 .disabled(!isEnabled || povState == .preparing)
-                .padding(.top, 22)
+                .padding(.top, isShort ? 8 : 12)
 
                 EmbeddedLeaderboardView(
                     state: leaderboardState,
                     accountState: accountState,
+                    maximumLeaderCount: leaderCount,
+                    isCompact: isShort || isAccessibility,
                     onSignIn: onOpenAccount,
                     onRetry: { Task { await onRefreshLeaderboard() } }
                 )
-                .padding(.top, 30)
+                .padding(.top, isShort ? 10 : 16)
 
-                Spacer(minLength: 30)
+                Spacer(minLength: 4)
             }
+            .frame(maxWidth: YEETTheme.contentWidth, maxHeight: .infinity)
+            .padding(.horizontal, isShort ? 16 : YEETTheme.pagePadding)
+            .frame(maxWidth: .infinity)
         }
-        .refreshable { await onRefreshLeaderboard() }
+        .background(YEETTheme.paper.ignoresSafeArea())
         .accessibilityIdentifier(isEnabled ? "yeet.state.idle" : "yeet.state.preparing")
     }
 }
@@ -420,6 +664,7 @@ private struct IdleView: View {
 private struct POVToggleRow: View {
     let isOn: Bool
     let isPreparing: Bool
+    var isCompact = false
     let onChange: (Bool) -> Void
 
     var body: some View {
@@ -436,8 +681,10 @@ private struct POVToggleRow: View {
             .accessibilityHidden(true)
 
             Text("Record POV")
-                .font(.subheadline.weight(.bold))
+                .font(isCompact ? .system(size: 16, weight: .bold) : .subheadline.weight(.bold))
                 .foregroundStyle(YEETTheme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
 
             Spacer(minLength: 12)
 
@@ -461,7 +708,7 @@ private struct POVToggleRow: View {
             }
         }
         .padding(.horizontal, 16)
-        .frame(minHeight: 58)
+        .frame(height: isCompact ? 46 : 54)
         .background(YEETTheme.paper, in: Capsule())
         .overlay {
             Capsule()
@@ -582,9 +829,10 @@ private struct HapticCaption: View {
 }
 
 private struct AirborneView: View {
+    let startTimestamp: TimeInterval
     let isRecording: Bool
 
-    @ScaledMetric(relativeTo: .largeTitle) private var displaySize: CGFloat = 68
+    @ScaledMetric(relativeTo: .largeTitle) private var displaySize: CGFloat = 106
 
     var body: some View {
         YEETPage(background: YEETTheme.paper) {
@@ -599,13 +847,20 @@ private struct AirborneView: View {
                 Spacer(minLength: 56)
 
                 VStack(spacing: 2) {
-                    Text("AIRBORNE")
-                        .font(.system(size: displaySize, weight: .black, design: .default))
+                    TimelineView(.animation(minimumInterval: 0.02)) { _ in
+                        let elapsed = max(0, ProcessInfo.processInfo.systemUptime - startTimestamp)
+                        HStack(alignment: .firstTextBaseline, spacing: 2) {
+                            Text(elapsed.formatted(.number.precision(.fractionLength(2))))
+                            Text("s")
+                                .font(.system(size: displaySize * 0.48, weight: .black))
+                        }
+                        .font(.system(size: displaySize, weight: .black))
                         .fontWidth(.compressed)
-                        .italic()
+                        .monospacedDigit()
                         .lineLimit(1)
-                        .minimumScaleFactor(0.55)
+                        .minimumScaleFactor(0.45)
                         .foregroundStyle(YEETTheme.ink)
+                    }
 
                     Text("AIRTIME")
                         .font(.subheadline.weight(.bold))
@@ -619,6 +874,121 @@ private struct AirborneView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(isRecording ? "Airborne. POV recording." : "Airborne.")
         .accessibilityIdentifier("yeet.state.airborne")
+    }
+}
+
+private struct CatchView: View {
+    let result: DetectionResult
+    let showsConfetti: Bool
+
+    var body: some View {
+        ZStack {
+            YEETPage(background: YEETTheme.paper) {
+                VStack(spacing: 4) {
+                    Spacer(minLength: 100)
+                    Text(result.airtime.formatted(.number.precision(.fractionLength(2))))
+                        .font(.system(size: 104, weight: .black))
+                        .fontWidth(.compressed)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.45)
+                    Text("SECONDS AIRTIME")
+                        .font(.caption.weight(.black))
+                        .tracking(1.2)
+                        .foregroundStyle(YEETTheme.muted)
+                    Spacer(minLength: 48)
+                    Image(systemName: "hands.clap.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(YEETTheme.yellow)
+                    Text("NICE CATCH")
+                        .font(.headline.weight(.black))
+                        .padding(.top, 6)
+                    Spacer(minLength: 80)
+                }
+            }
+
+            if showsConfetti {
+                ConfettiView(colors: [YEETTheme.yellow, YEETTheme.purple, YEETTheme.orange])
+                    .allowsHitTesting(false)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Nice catch. \(result.airtime.formatted(.number.precision(.fractionLength(2)))) seconds airtime")
+        .accessibilityIdentifier("yeet.state.catch")
+    }
+}
+
+private struct ConfettiView: View {
+    let colors: [Color]
+    @State private var startedAt = Date()
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            GeometryReader { proxy in
+                let elapsed = timeline.date.timeIntervalSince(startedAt)
+                Canvas { context, size in
+                    for index in 0..<34 {
+                        let seed = Double((index * 37) % 101) / 101
+                        let x = size.width * CGFloat(seed)
+                        let speed = 120 + Double((index * 29) % 140)
+                        let y = CGFloat((elapsed * speed + Double(index * 43)).truncatingRemainder(dividingBy: Double(size.height + 80))) - 40
+                        let width = CGFloat(5 + (index % 4) * 2)
+                        let rect = CGRect(x: x, y: y, width: width, height: width * 2.2)
+                        context.fill(Path(roundedRect: rect, cornerRadius: 1), with: .color(colors[index % colors.count]))
+                    }
+                }
+            }
+        }
+        .ignoresSafeArea()
+        .onAppear { startedAt = Date() }
+        .accessibilityHidden(true)
+    }
+}
+
+private struct RankUpView: View {
+    let previousRank: Int?
+    let newRank: Int
+    let showsMotion: Bool
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            if showsMotion {
+                ConfettiView(colors: [YEETTheme.yellow, YEETTheme.purple, .white])
+                    .opacity(0.8)
+            }
+
+            VStack(spacing: 22) {
+                Spacer()
+                Text(previousRank.map { "#\($0.formatted())" } ?? "UNRANKED")
+                    .font(.title2.weight(.black))
+                    .foregroundStyle(Color.white.opacity(0.38))
+
+                Image(systemName: "arrow.down")
+                    .font(.title.weight(.black))
+                    .foregroundStyle(YEETTheme.purple)
+                    .symbolEffect(.bounce, options: showsMotion ? .repeating : .nonRepeating)
+
+                Text("#\(newRank.formatted())")
+                    .font(.system(size: 82, weight: .black))
+                    .fontWidth(.compressed)
+                    .monospacedDigit()
+                    .foregroundStyle(YEETTheme.ink)
+                    .padding(.horizontal, 34)
+                    .padding(.vertical, 14)
+                    .background(YEETTheme.yellow, in: RoundedRectangle(cornerRadius: 8))
+
+                Text(previousRank == nil ? "YOU’RE ON THE BOARD" : "RANK UP")
+                    .font(.headline.weight(.black))
+                    .tracking(0.8)
+                    .foregroundStyle(.white)
+                Spacer()
+            }
+            .padding(24)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(previousRank.map { "Rank improved from \($0) to \(newRank)" } ?? "Your first rank is \(newRank)")
+        .accessibilityIdentifier("yeet.state.rankUp")
     }
 }
 
@@ -646,10 +1016,11 @@ private struct RecordingBadge: View {
 }
 
 private struct ResultView: View {
-    let result: DetectionResult
+    let kind: YEETResultKind
+    let presentation: AttemptPresentation
     let povState: POVCaptureState
-    let cloudState: ResultCloudState
     let onStartAgain: () -> Void
+    let onViewLeaderboard: () -> Void
     let onViewPOV: (URL) -> Void
     let onOpenAccount: () -> Void
     let onRetryScore: () -> Void
@@ -659,13 +1030,15 @@ private struct ResultView: View {
     @ScaledMetric(relativeTo: .title) private var suffixSize: CGFloat = 50
 
     private var formattedAirtime: String {
-        result.airtime.formatted(.number.precision(.fractionLength(3)))
+        presentation.result.airtime.formatted(.number.precision(.fractionLength(2)))
     }
 
     var body: some View {
         YEETPage(background: YEETTheme.paper) {
             VStack(spacing: 0) {
-                Spacer(minLength: 96)
+                Spacer(minLength: 54)
+
+                achievementBadge
 
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
                     Text(formattedAirtime)
@@ -688,14 +1061,10 @@ private struct ResultView: View {
                     .foregroundStyle(YEETTheme.muted)
                     .padding(.top, -2)
 
-                ResultLeaderboardPrompt(
-                    state: cloudState,
-                    onSignIn: onOpenAccount,
-                    onRetry: onRetryScore
-                )
-                .padding(.top, 28)
+                outcomeDetail
+                    .padding(.top, 22)
 
-                Spacer(minLength: 46)
+                Spacer(minLength: 28)
 
                 YEETPrimaryButton(title: "YEET AGAIN", action: onStartAgain)
                     .disabled(!isEnabled)
@@ -704,6 +1073,10 @@ private struct ResultView: View {
                     )
                     .accessibilityIdentifier("yeet.startAgain")
 
+                YEETSecondaryButton(title: "VIEW LEADERBOARD", action: onViewLeaderboard)
+                    .accessibilityIdentifier("yeet.result.viewLeaderboard")
+                    .padding(.top, 10)
+
                 povAction
             }
         }
@@ -711,27 +1084,79 @@ private struct ResultView: View {
     }
 
     @ViewBuilder
+    private var achievementBadge: some View {
+        switch kind {
+        case .normal:
+            EmptyView()
+        case .personalBest:
+            Text("NEW PB!")
+                .font(.caption.weight(.black))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18)
+                .frame(height: 34)
+                .background(YEETTheme.purple, in: Capsule())
+                .padding(.bottom, 12)
+        case .worldRecord:
+            VStack(spacing: 6) {
+                Image(systemName: "crown.fill")
+                    .font(.title)
+                    .foregroundStyle(YEETTheme.yellow)
+                Text("WORLD RECORD")
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(YEETTheme.purple)
+            }
+            .padding(.bottom, 12)
+        }
+    }
+
+    @ViewBuilder
+    private var outcomeDetail: some View {
+        switch kind {
+        case .normal:
+            ResultLeaderboardPrompt(
+                state: presentation.saveStatus,
+                onSignIn: onOpenAccount,
+                onRetry: onRetryScore
+            )
+        case .personalBest:
+            VStack(spacing: 4) {
+                Text("PREVIOUS PB")
+                    .font(.caption2.weight(.black))
+                    .tracking(0.7)
+                    .foregroundStyle(YEETTheme.muted)
+                Text(presentation.previousPersonalBestMilliseconds.map(LeaderboardFormat.heroAirtime) ?? "FIRST SCORE")
+                    .font(.title3.weight(.black))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 72)
+            .background(YEETTheme.ink.opacity(0.04), in: RoundedRectangle(cornerRadius: 16))
+        case .worldRecord:
+            Text("YOU ARE #1")
+                .font(.title2.weight(.black))
+                .foregroundStyle(YEETTheme.purple)
+        }
+    }
+
+    @ViewBuilder
     private var povAction: some View {
-        switch povState {
-        case .finalizing:
+        if povState == .finalizing {
             YEETSecondaryButton(title: "PROCESSING POV…", action: {})
                 .disabled(true)
                 .accessibilityIdentifier("yeet.pov.processing")
                 .padding(.top, 12)
-                .padding(.bottom, 34)
-
-        case let .available(url):
+                .padding(.bottom, 24)
+        } else if let url = presentation.povURL {
             YEETSecondaryButton(title: "VIEW POV") {
                 onViewPOV(url)
             }
             .accessibilityHint("Opens the recorded point-of-view video")
             .accessibilityIdentifier("yeet.pov.view")
             .padding(.top, 12)
-            .padding(.bottom, 34)
+                .padding(.bottom, 24)
 
-        default:
+        } else {
             Color.clear
-                .frame(height: 34)
+                .frame(height: 24)
         }
     }
 }
@@ -869,6 +1294,7 @@ private struct YEETSecondaryButton: View {
 
 private struct YEETHeroButton: View {
     let action: () -> Void
+    var isCompact = false
 
     @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 48
 
@@ -878,7 +1304,7 @@ private struct YEETHeroButton: View {
                 YEETBurstMark()
 
                 Text("YEET")
-                    .font(.system(size: titleSize, weight: .black, design: .default))
+                    .font(.system(size: isCompact ? 38 : titleSize, weight: .black, design: .default))
                     .fontWidth(.compressed)
                     .italic()
                     .lineLimit(1)
@@ -889,7 +1315,7 @@ private struct YEETHeroButton: View {
             }
             .foregroundStyle(YEETTheme.ink)
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 98)
+            .frame(minHeight: isCompact ? 72 : 88)
             .padding(.horizontal, 20)
             .background(YEETTheme.yellow, in: Capsule())
             .overlay {
@@ -974,21 +1400,22 @@ private struct NoYeetMark: View {
 
 private struct POVReplayView: View {
     let url: URL
-    let result: DetectionResult
+    let context: ShareVideoContext
     let onDone: () -> Void
 
     @State private var player: AVPlayer
     @State private var isPlaying = false
+    @State private var isSharing = false
 
-    init(url: URL, result: DetectionResult, onDone: @escaping () -> Void) {
+    init(url: URL, context: ShareVideoContext, onDone: @escaping () -> Void) {
         self.url = url
-        self.result = result
+        self.context = context
         self.onDone = onDone
         _player = State(initialValue: AVPlayer(url: url))
     }
 
     private var formattedAirtime: String {
-        result.airtime.formatted(.number.precision(.fractionLength(2)))
+        context.result.airtime.formatted(.number.precision(.fractionLength(2)))
     }
 
     var body: some View {
@@ -1060,7 +1487,11 @@ private struct POVReplayView: View {
                     Button("DONE", action: onDone)
                         .buttonStyle(POVReplayButtonStyle(isPrimary: false))
 
-                    Button("WATCH AGAIN", action: playFromStart)
+                    Button("SHARE") {
+                        player.pause()
+                        isPlaying = false
+                        isSharing = true
+                    }
                         .buttonStyle(POVReplayButtonStyle(isPrimary: true))
                 }
                 .padding(.horizontal, 20)
@@ -1068,6 +1499,11 @@ private struct POVReplayView: View {
             }
         }
         .statusBarHidden(true)
+        .fullScreenCover(isPresented: $isSharing) {
+            SocialShareView(sourceURL: url, context: context) {
+                isSharing = false
+            }
+        }
         .onAppear {
             player.actionAtItemEnd = .pause
             player.seek(to: .zero)
@@ -1199,70 +1635,112 @@ private struct DebugPanel: View {
 #endif
 
 #if DEBUG
-#Preview("Idle") {
-    YEETScreen(state: .idle, onStart: {}, onStartAgain: {})
-        .preferredColorScheme(.light)
-}
+#Preview("Tutorial") { TutorialView(onContinue: {}) }
 
-#Preview("Preparing") {
-    YEETScreen(state: .preparing(.idle), onStart: {}, onStartAgain: {})
-        .preferredColorScheme(.light)
+#Preview("Home") {
+    IdleView(
+        isPOVEnabled: true,
+        povState: .ready,
+        leaderboardState: .loaded(.empty),
+        accountState: .signedOut,
+        onStart: {},
+        onPOVChange: { _ in },
+        onOpenAccount: {},
+        onRefreshLeaderboard: {}
+    )
 }
 
 #Preview("Countdown · 3") {
-    YEETScreen(state: .countdown(.three), onStart: {}, onStartAgain: {})
+    YEETScreen(state: .countdown(.three))
         .preferredColorScheme(.light)
 }
 
 #Preview("Countdown · 2") {
-    YEETScreen(state: .countdown(.two), onStart: {}, onStartAgain: {})
+    YEETScreen(state: .countdown(.two))
         .preferredColorScheme(.light)
 }
 
 #Preview("Countdown · 1") {
-    YEETScreen(state: .countdown(.one), onStart: {}, onStartAgain: {})
+    YEETScreen(state: .countdown(.one))
         .preferredColorScheme(.light)
 }
 
 #Preview("Waiting") {
-    YEETScreen(state: .waiting, onStart: {}, onStartAgain: {})
+    YEETScreen(state: .waiting)
         .preferredColorScheme(.light)
 }
 
 #Preview("Airborne") {
-    YEETScreen(state: .airborne, onStart: {}, onStartAgain: {})
+    YEETScreen(state: .airborne(startTimestamp: ProcessInfo.processInfo.systemUptime - 0.72), isPOVRecording: true)
         .preferredColorScheme(.light)
 }
 
+#Preview("Catch") { CatchView(result: .preview, showsConfetti: true) }
+
+#Preview("Rank up") { RankUpView(previousRank: 7_102, newRank: 6_214, showsMotion: true) }
+
 #Preview("Result") {
-    YEETScreen(
-        state: .result(
-            DetectionResult(
-                airborneStartTimestamp: 1,
-                landingTimestamp: 2.62,
-                airtime: 1.62,
-                preflightPeakAcceleration: 1.8,
-                impactPeakAcceleration: 2.1,
-                airborneSampleCount: 162
-            )
-        ),
-        leaderboardState: .loaded(
-            LeaderboardSnapshot(
-                leaders: [],
-                currentUser: nil,
-                candidateRank: 56,
-                totalPlayers: 2_000
-            )
-        ),
-        resultCloudState: .guest(rank: 56),
-        onStart: {},
-        onStartAgain: {}
+    ResultView(
+        kind: .normal,
+        presentation: .preview,
+        povState: .disabled,
+        onStartAgain: {},
+        onViewLeaderboard: {},
+        onViewPOV: { _ in },
+        onOpenAccount: {},
+        onRetryScore: {}
     )
-    .preferredColorScheme(.light)
+}
+
+#Preview("New PB") {
+    ResultView(
+        kind: .personalBest,
+        presentation: .preview,
+        povState: .disabled,
+        onStartAgain: {},
+        onViewLeaderboard: {},
+        onViewPOV: { _ in },
+        onOpenAccount: {},
+        onRetryScore: {}
+    )
+}
+
+#Preview("World record") {
+    ResultView(
+        kind: .worldRecord,
+        presentation: .preview,
+        povState: .disabled,
+        onStartAgain: {},
+        onViewLeaderboard: {},
+        onViewPOV: { _ in },
+        onOpenAccount: {},
+        onRetryScore: {}
+    )
 }
 
 #Preview("Invalid") {
-    YEETScreen(state: .invalid(.tooShort), onStart: {}, onStartAgain: {})
+    InvalidView(onStartAgain: {})
         .preferredColorScheme(.light)
+}
+
+private extension DetectionResult {
+    static let preview = DetectionResult(
+        airborneStartTimestamp: 1,
+        landingTimestamp: 2.62,
+        airtime: 1.62,
+        preflightPeakAcceleration: 1.8,
+        impactPeakAcceleration: 2.1,
+        airborneSampleCount: 162
+    )
+}
+
+private extension AttemptPresentation {
+    static let preview = AttemptPresentation(
+        result: .preview,
+        previousPersonalBestMilliseconds: 1_420,
+        previousRank: 7_102,
+        saveStatus: .guest(rank: 56),
+        povURL: nil
+    )
 }
 #endif

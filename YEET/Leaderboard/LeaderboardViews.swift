@@ -12,7 +12,7 @@ struct PersonalBestRankCard: View {
         HStack(spacing: 0) {
             metric(
                 title: "PB",
-                value: currentUser?.airtimeMilliseconds.map(LeaderboardFormat.airtime) ?? "—"
+                value: currentUser?.airtimeMilliseconds.map(LeaderboardFormat.heroAirtime) ?? "—"
             )
 
             Rectangle()
@@ -63,6 +63,8 @@ struct PersonalBestRankCard: View {
 struct EmbeddedLeaderboardView: View {
     let state: LeaderboardLoadState
     let accountState: AccountState
+    var maximumLeaderCount = 6
+    var isCompact = false
     let onSignIn: () -> Void
     let onRetry: () -> Void
 
@@ -70,9 +72,11 @@ struct EmbeddedLeaderboardView: View {
         VStack(spacing: 12) {
             HStack {
                 Text("GLOBAL LEADERBOARD")
-                    .font(.caption.weight(.black))
+                    .font(isCompact ? .system(size: 13, weight: .black) : .caption.weight(.black))
                     .tracking(0.7)
                     .foregroundStyle(YEETTheme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.45)
                 Spacer()
                 if case .loading = state {
                     ProgressView().controlSize(.small).tint(YEETTheme.ink)
@@ -81,7 +85,7 @@ struct EmbeddedLeaderboardView: View {
 
             content
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, 2)
         .accessibilityIdentifier("yeet.leaderboard")
     }
 
@@ -117,6 +121,7 @@ struct EmbeddedLeaderboardView: View {
 
     @ViewBuilder
     private func leaderboard(snapshot: LeaderboardSnapshot, isStale: Bool) -> some View {
+        let displayedLeaders = Array(snapshot.leaders.prefix(maximumLeaderCount))
         if snapshot.leaders.isEmpty {
             LeaderboardMessage(
                 title: "BE THE FIRST TO RANK",
@@ -124,19 +129,20 @@ struct EmbeddedLeaderboardView: View {
             )
         } else {
             VStack(spacing: 6) {
-                ForEach(snapshot.leaders) { entry in
+                ForEach(displayedLeaders) { entry in
                     LeaderboardRow(
                         entry: entry,
-                        isHighlighted: entry.userID == snapshot.currentUser?.userID
+                        isHighlighted: entry.userID == snapshot.currentUser?.userID,
+                        isCompact: isCompact
                     )
                 }
             }
         }
 
         if let currentUser = snapshot.currentUser,
-           !snapshot.leaders.contains(where: { $0.userID == currentUser.userID }) {
+           !displayedLeaders.contains(where: { $0.userID == currentUser.userID }) {
             Divider().padding(.vertical, 2)
-            LeaderboardRow(entry: currentUser, isHighlighted: true)
+            LeaderboardRow(entry: currentUser, isHighlighted: true, isCompact: isCompact)
         } else if case .signedOut = accountState {
             Button(action: onSignIn) {
                 HStack {
@@ -144,7 +150,9 @@ struct EmbeddedLeaderboardView: View {
                     Spacer()
                     Text("SIGN IN TO SAVE")
                 }
-                .font(.caption.weight(.black))
+                .font(isCompact ? .system(size: 13, weight: .black) : .caption.weight(.black))
+                .lineLimit(1)
+                .minimumScaleFactor(0.45)
                 .foregroundStyle(YEETTheme.ink)
                 .padding(.horizontal, 14)
                 .frame(height: 44)
@@ -178,29 +186,39 @@ struct EmbeddedLeaderboardView: View {
 private struct LeaderboardRow: View {
     let entry: LeaderboardEntry
     let isHighlighted: Bool
+    var isCompact = false
 
     var body: some View {
         HStack(spacing: 10) {
             Text(entry.rank.map { "#\($0.formatted())" } ?? "—")
-                .font(.caption.weight(.black))
+                .font(isCompact ? .system(size: 13, weight: .black) : .caption.weight(.black))
                 .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.45)
                 .frame(width: 38, alignment: .leading)
 
             LeaderboardInitialBadge(handle: entry.handle)
 
             Text("@\(entry.handle)")
-                .font(.subheadline.weight(isHighlighted ? .black : .semibold))
+                .font(
+                    isCompact
+                        ? .system(size: 14, weight: isHighlighted ? .black : .semibold)
+                        : .subheadline.weight(isHighlighted ? .black : .semibold)
+                )
                 .lineLimit(1)
+                .minimumScaleFactor(0.45)
 
             Spacer(minLength: 8)
 
             Text(entry.airtimeMilliseconds.map(LeaderboardFormat.airtime) ?? "—")
-                .font(.subheadline.weight(.black))
+                .font(isCompact ? .system(size: 14, weight: .black) : .subheadline.weight(.black))
                 .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.45)
         }
         .foregroundStyle(YEETTheme.ink)
         .padding(.horizontal, 12)
-        .frame(minHeight: 42)
+        .frame(height: isCompact ? 38 : 40)
         .background(
             isHighlighted ? YEETTheme.yellow : YEETTheme.paper,
             in: RoundedRectangle(cornerRadius: 12)
@@ -281,6 +299,8 @@ struct ResultLeaderboardPrompt: View {
         switch state {
         case .idle:
             EmptyView()
+        case .checkingAccount:
+            statusPanel(title: "CHECKING YOUR ACCOUNT…", detail: nil, showsProgress: true)
         case .estimating:
             statusPanel(title: "CHECKING YOUR RANK…", detail: nil, showsProgress: true)
         case let .guest(rank):
@@ -298,6 +318,22 @@ struct ResultLeaderboardPrompt: View {
                     .background(YEETTheme.yellow, in: Capsule())
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("yeet.result.signInToSave")
+            }
+        case let .needsHandle(rank):
+            VStack(spacing: 10) {
+                statusPanel(
+                    title: rank.map { "YOU’D RANK #\($0.formatted())" } ?? "PROFILE REQUIRED",
+                    detail: "Choose a handle to save this YEET.",
+                    showsProgress: false
+                )
+                Button("CHOOSE HANDLE", action: onSignIn)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(YEETTheme.ink)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 42)
+                    .background(YEETTheme.yellow, in: Capsule())
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("yeet.result.chooseHandle")
             }
         case .saving:
             statusPanel(title: "SAVING SCORE…", detail: nil, showsProgress: true)
@@ -356,6 +392,11 @@ enum LeaderboardFormat {
 
     static func rank(_ rank: Int) -> String {
         "#" + rank.formatted()
+    }
+
+    static func heroAirtime(_ milliseconds: Int) -> String {
+        let seconds = Double(milliseconds) / 1_000
+        return seconds.formatted(.number.precision(.fractionLength(2))) + "s"
     }
 }
 

@@ -5,6 +5,7 @@ import SwiftUI
 
 struct AccountSheet: View {
     @ObservedObject var appModel: YEETAppModel
+    var onShowTutorial: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
     @State private var isEditingHandle = false
     @State private var isConfirmingDeletion = false
@@ -16,6 +17,11 @@ struct AccountSheet: View {
             ScrollView {
                 VStack(spacing: 20) {
                     accountContent
+                    Divider().opacity(0.55)
+                    accountButton("HOW TO PLAY", symbol: "hand.point.up.left.fill") {
+                        dismiss()
+                        onShowTutorial()
+                    }
                     if let error = localError ?? appModel.accountActionError {
                         Text(error)
                             .font(.caption.weight(.semibold))

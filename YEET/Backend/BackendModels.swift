@@ -115,12 +115,26 @@ enum LeaderboardLoadState: Equatable, Sendable {
 
 enum ResultCloudState: Equatable, Sendable {
     case idle
+    case checkingAccount
     case estimating
     case guest(rank: Int?)
+    case needsHandle(rank: Int?)
     case saving
     case saved(ScoreSubmissionResult)
     case failed(message: String)
     case unavailable
+
+    var authoritativeRank: Int? {
+        guard case let .saved(result) = self else { return nil }
+        return result.rank
+    }
+
+    var candidateRank: Int? {
+        switch self {
+        case let .guest(rank), let .needsHandle(rank): return rank
+        default: return nil
+        }
+    }
 }
 
 enum BackendError: LocalizedError, Equatable, Sendable {

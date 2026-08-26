@@ -7,18 +7,15 @@ enum YEETCountdownStep: Int, CaseIterable, Equatable, Sendable {
     case one = 1
 }
 
-enum YEETPreparationContext: Equatable, Sendable {
-    case idle
-    case result(DetectionResult)
-    case invalid(DetectionInvalidReason)
+enum YEETCountdownTimeline {
+    static let stepInterval: TimeInterval = 1.0
 }
 
 enum YEETViewState: Equatable, Sendable {
     case idle
-    case preparing(YEETPreparationContext)
     case countdown(YEETCountdownStep)
     case waiting
-    case airborne
+    case airborne(startTimestamp: TimeInterval)
     case result(DetectionResult)
     case invalid(DetectionInvalidReason)
 }
@@ -51,12 +48,12 @@ final class YEETViewModel: ObservableObject {
 #endif
 
     private let config: DetectionConfig
-    private let preCountdownSleep: @Sendable () async throws -> Void
     private let countdownSleep: @Sendable () async throws -> Void
     private let launchRenderSleep: @Sendable () async throws -> Void
     private let motionServiceFactory: () -> any MotionServicing
     private let povCaptureServiceFactory: () -> any POVCaptureServicing
-    private let povPermissionsAuthorized: () -> Bool
+    private let readPOVPreference: () -> Bool
+    private let writePOVPreference: (Bool) -> Void
     private var motionService: (any MotionServicing)?
     private var povCaptureService: (any POVCaptureServicing)?
     private var activeSessionID: UUID?
@@ -65,10 +62,16 @@ final class YEETViewModel: ObservableObject {
     private var povPreparationTask: Task<Void, Never>?
     private var povLifecycleTask: Task<Void, Never>?
     private var pendingPOVError: POVCaptureError?
-    private var hasAppliedPOVDefault = false
+    private var hasRestoredPOVPreference = false
 
     var canStart: Bool {
-        !isPOVEnabled || povState == .ready
+        guard isPOVEnabled else { return true }
+        switch povState {
+        case .ready, .available, .failed:
+            return true
+        case .disabled, .preparing, .recording, .finalizing:
+            return false
+        }
     }
 
     var canStartAgain: Bool {
@@ -86,11 +89,8 @@ final class YEETViewModel: ObservableObject {
 
     init(
         config: DetectionConfig = .spikeV1,
-        preCountdownSleep: @escaping @Sendable () async throws -> Void = {
-            try await Task.sleep(for: .milliseconds(400))
-        },
         countdownSleep: @escaping @Sendable () async throws -> Void = {
-            try await Task.sleep(for: .seconds(1))
+            try await Task.sleep(for: .seconds(YEETCountdownTimeline.stepInterval))
         },
         launchRenderSleep: @escaping @Sendable () async throws -> Void = {
             try await Task.sleep(for: .milliseconds(16))
@@ -99,37 +99,36 @@ final class YEETViewModel: ObservableObject {
         povCaptureServiceFactory: @escaping () -> any POVCaptureServicing = {
             POVCaptureService()
         },
-        povPermissionsAuthorized: @escaping () -> Bool = {
-            POVCaptureService.requiredPermissionsAreAuthorized
+        readPOVPreference: @escaping () -> Bool = {
+            UserDefaults.standard.bool(forKey: "yeet.pov.enabled")
+        },
+        writePOVPreference: @escaping (Bool) -> Void = { enabled in
+            UserDefaults.standard.set(enabled, forKey: "yeet.pov.enabled")
         }
     ) {
         self.config = config
-        self.preCountdownSleep = preCountdownSleep
         self.countdownSleep = countdownSleep
         self.launchRenderSleep = launchRenderSleep
         self.motionServiceFactory = motionServiceFactory
         self.povCaptureServiceFactory = povCaptureServiceFactory
-        self.povPermissionsAuthorized = povPermissionsAuthorized
+        self.readPOVPreference = readPOVPreference
+        self.writePOVPreference = writePOVPreference
     }
 
     func start() {
         guard canStart else { return }
-        startCountdown(from: .idle)
+        startCountdown()
     }
 
     func startAgain() {
         guard canStartAgain else { return }
-        let context: YEETPreparationContext = switch state {
-        case let .result(result): .result(result)
-        case let .invalid(reason): .invalid(reason)
-        default: .idle
-        }
-        startCountdown(from: context)
+        startCountdown()
     }
 
     func setPOVEnabled(_ enabled: Bool) {
         guard enabled != isPOVEnabled else { return }
-        hasAppliedPOVDefault = true
+        hasRestoredPOVPreference = true
+        writePOVPreference(enabled)
         povAlert = nil
 
         if enabled {
@@ -143,32 +142,67 @@ final class YEETViewModel: ObservableObject {
         povAlert = nil
     }
 
-    func enablePOVByDefaultIfAuthorized() {
-        guard !hasAppliedPOVDefault, !isPOVEnabled, povPermissionsAuthorized() else {
-            return
+    func releaseAttemptPOV() {
+        switch povState {
+        case .available:
+            clearPreviousPOV()
+        case .recording, .finalizing:
+            povLifecycleTask?.cancel()
+            povLifecycleTask = nil
+            guard let service = povCaptureService else {
+                povState = isPOVEnabled ? .ready : .disabled
+                return
+            }
+            povState = .preparing
+            povLifecycleTask = Task { [weak self, service] in
+                await service.discardRecording()
+                guard let self else { return }
+                self.povState = self.isPOVEnabled ? .ready : .disabled
+            }
+        case .disabled, .preparing, .ready, .failed:
+            break
         }
-        hasAppliedPOVDefault = true
-        enablePOV()
     }
 
-    private func startCountdown(from context: YEETPreparationContext) {
+    func cleanUp() {
+        cancelActiveSession()
+        povPreparationTask?.cancel()
+        povLifecycleTask?.cancel()
+        povPreparationTask = nil
+        povLifecycleTask = nil
+        if case let .available(url) = povState {
+            try? FileManager.default.removeItem(at: url)
+        }
+        guard let service = povCaptureService else { return }
+        povCaptureService = nil
+        Task { await service.cleanUp() }
+    }
+
+    func restorePOVPreference() {
+        let prefersPOV = readPOVPreference()
+        if !hasRestoredPOVPreference {
+            hasRestoredPOVPreference = true
+            if prefersPOV { enablePOV() }
+        } else if prefersPOV, case .failed = povState {
+            // Returning from Settings is the recovery path for a revoked
+            // permission. Keep the explicit choice and prepare again.
+            enablePOV()
+        }
+    }
+
+    private func startCountdown() {
         cancelActiveSession()
         clearPreviousPOV()
 
-        state = .preparing(context)
         motionService = motionServiceFactory()
 #if DEBUG
         debugSnapshot = nil
 #endif
 
-        let initialSleep = preCountdownSleep
+        state = .countdown(.three)
         let stepSleep = countdownSleep
-        countdownTask = Task { [weak self, initialSleep, stepSleep] in
+        countdownTask = Task { [weak self, stepSleep] in
             do {
-                try await initialSleep()
-                try Task.checkCancellation()
-                self?.state = .countdown(.three)
-
                 try await stepSleep()
                 try Task.checkCancellation()
                 self?.state = .countdown(.two)
@@ -256,7 +290,7 @@ final class YEETViewModel: ObservableObject {
         guard scenePhase != .active else { return }
 
         switch state {
-        case .preparing, .countdown:
+        case .countdown:
             cancelActiveSession()
             state = .idle
         default:
@@ -276,16 +310,11 @@ final class YEETViewModel: ObservableObject {
         guard let event = output.event else { return }
 
         switch event.state {
-        case .airborne:
-            state = .airborne
-            scheduleTimeout(
-                after: config.maximumAirtime + 0.5,
-                sessionID: sessionID,
-                reason: .sensorStalled
-            )
+        case let .airborne(start):
+            state = .airborne(startTimestamp: start)
 
-        case .possibleLanding:
-            state = .airborne
+        case let .possibleLanding(start, _, _):
+            state = .airborne(startTimestamp: start)
 
         case let .finished(result):
             finish(.result(result))
@@ -417,7 +446,8 @@ final class YEETViewModel: ObservableObject {
     }
 
     private func recordPOVFailure(_ error: POVCaptureError, presentAlert: Bool) {
-        isPOVEnabled = false
+        // A camera or microphone failure disables recording for this attempt,
+        // but it must not silently overwrite the player's explicit selection.
         povState = .failed(error)
         pendingPOVError = presentAlert ? nil : error
 

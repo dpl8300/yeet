@@ -113,13 +113,17 @@ final class AirtimeDetectorTests: XCTestCase {
         XCTAssertEqual(detector.state, .invalid(.sampleGap))
     }
 
-    func testMaximumAirtimeIsRejected() {
+    func testAirtimeLongerThanThreeSecondsIsAccepted() throws {
         var detector = confirmedAirborneDetector(start: 1.0)
-        for index in 1...76 {
+        for index in 1...100 {
             _ = detector.process(sample(at: 1.03 + (Double(index) * 0.04), magnitude: 0.1))
         }
+        _ = detector.process(sample(at: 5.04, magnitude: 0.8))
+        _ = detector.process(sample(at: 5.05, magnitude: 0.9))
+        _ = detector.process(sample(at: 5.06, magnitude: 1.0))
 
-        XCTAssertEqual(detector.state, .invalid(.exceededMaximumAirtime))
+        let result = try XCTUnwrap(finishedResult(from: detector.state))
+        XCTAssertGreaterThan(result.airtime, 3)
     }
 
     func testOutOfOrderTimestampIsRejected() {

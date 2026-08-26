@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(25);
+select extensions.plan(29);
 
 select extensions.has_table('public', 'profiles', 'profiles exists');
 select extensions.has_table('public', 'attempts', 'attempts exists');
@@ -56,6 +56,30 @@ insert into auth.users (
         '00000000-0000-0000-0000-000000000000',
         'authenticated', 'authenticated', 'charlie@example.test', '', now(),
         '{"provider":"apple","providers":["apple"]}', '{}', now(), now()
+    ),
+    (
+        '40000000-0000-0000-0000-000000000004',
+        '00000000-0000-0000-0000-000000000000',
+        'authenticated', 'authenticated', 'delta@example.test', '', now(),
+        '{"provider":"apple","providers":["apple"]}', '{}', now(), now()
+    ),
+    (
+        '50000000-0000-0000-0000-000000000005',
+        '00000000-0000-0000-0000-000000000000',
+        'authenticated', 'authenticated', 'echo@example.test', '', now(),
+        '{"provider":"apple","providers":["apple"]}', '{}', now(), now()
+    ),
+    (
+        '60000000-0000-0000-0000-000000000006',
+        '00000000-0000-0000-0000-000000000000',
+        'authenticated', 'authenticated', 'foxtrot@example.test', '', now(),
+        '{"provider":"apple","providers":["apple"]}', '{}', now(), now()
+    ),
+    (
+        '70000000-0000-0000-0000-000000000007',
+        '00000000-0000-0000-0000-000000000000',
+        'authenticated', 'authenticated', 'golf@example.test', '', now(),
+        '{"provider":"apple","providers":["apple"]}', '{}', now(), now()
     );
 
 set local role authenticated;
@@ -89,13 +113,9 @@ select extensions.throws_ok(
     'invalid_attempt',
     'attempts below the detector bound are rejected'
 );
-select extensions.throws_ok(
-    $$ select public.submit_attempt(
-        '10000000-0000-0000-0000-000000000011', 3001, 1, 1, 10
-    ) $$,
-    '22023',
-    'invalid_attempt',
-    'attempts above the detector bound are rejected'
+select extensions.lives_ok(
+    $$ select public.leaderboard_snapshot(3001) $$,
+    'candidate ranks accept airtime above the former detector bound'
 );
 select extensions.is(
     (public.submit_attempt(
@@ -213,6 +233,71 @@ select extensions.is(
     public.leaderboard_snapshot(null)->'leaders'->1->>'handle',
     'alpha',
     'equal personal bests break ties by earliest achievement'
+);
+
+reset role;
+insert into public.profiles (id, handle) values
+    ('50000000-0000-0000-0000-000000000005', 'echo'),
+    ('60000000-0000-0000-0000-000000000006', 'foxtrot'),
+    ('70000000-0000-0000-0000-000000000007', 'golf');
+insert into public.attempts (
+    client_attempt_id, user_id, airtime_ms, preflight_peak_g,
+    impact_peak_g, airborne_sample_count, created_at
+) values
+    (
+        '50000000-0000-0000-0000-000000000050',
+        '50000000-0000-0000-0000-000000000005', 1500, 1.8, 2.2, 150,
+        now() - interval '4 minutes'
+    ),
+    (
+        '60000000-0000-0000-0000-000000000060',
+        '60000000-0000-0000-0000-000000000006', 1400, 1.8, 2.2, 140,
+        now() - interval '5 minutes'
+    ),
+    (
+        '70000000-0000-0000-0000-000000000070',
+        '70000000-0000-0000-0000-000000000007', 1300, 1.8, 2.2, 130,
+        now() - interval '6 minutes'
+    );
+insert into public.personal_bests (user_id, attempt_id, airtime_ms, achieved_at) values
+    (
+        '50000000-0000-0000-0000-000000000005',
+        '50000000-0000-0000-0000-000000000050', 1500,
+        now() - interval '4 minutes'
+    ),
+    (
+        '60000000-0000-0000-0000-000000000006',
+        '60000000-0000-0000-0000-000000000060', 1400,
+        now() - interval '5 minutes'
+    ),
+    (
+        '70000000-0000-0000-0000-000000000007',
+        '70000000-0000-0000-0000-000000000070', 1300,
+        now() - interval '6 minutes'
+    );
+select extensions.is(
+    jsonb_array_length(public.leaderboard_snapshot(null)->'leaders'),
+    6,
+    'the snapshot returns six leaders'
+);
+select extensions.is(
+    public.leaderboard_snapshot(null)->'leaders'->5->>'handle',
+    'golf',
+    'all six leaders remain in deterministic score order'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '40000000-0000-0000-0000-000000000004', true);
+select extensions.is(
+    (public.set_profile_handle('delta')->>'handle'),
+    'delta',
+    'an additional player can create a profile'
+);
+select extensions.lives_ok(
+    $$ select public.submit_attempt(
+        '40000000-0000-0000-0000-000000000040', 4500, 1.8, 2.2, 450
+    ) $$,
+    'saved attempts accept airtime above the former detector bound'
 );
 
 reset role;

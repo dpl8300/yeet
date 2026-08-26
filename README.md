@@ -9,8 +9,8 @@ The local app configuration has already been created for this checkout and is ig
 ### 1. Create the database objects
 
 1. Open the YEET project in the Supabase Dashboard.
-2. Open **SQL Editor**, create a new query, and paste the complete contents of `supabase/migrations/20260826000100_accounts_and_leaderboard.sql`.
-3. Run the query once. It creates `profiles`, `attempts`, `personal_bests`, the three client RPCs, indexes, RLS, and restricted grants. It does not create fake scores.
+2. Open **SQL Editor**, create a new query, and run `supabase/migrations/20260826000100_accounts_and_leaderboard.sql` followed by `supabase/migrations/20260826000200_unbounded_airtime_and_six_leaders.sql` in filename order.
+3. The migrations create `profiles`, `attempts`, `personal_bests`, the three client RPCs, indexes, RLS, and restricted grants, then remove the former three-second score ceiling and expand leaderboard snapshots to six leaders. They do not create fake scores. Deploy both migrations before distributing this client.
 4. In **Database → Tables**, confirm all three tables show RLS enabled.
 5. In **Database → Functions**, confirm `leaderboard_snapshot`, `set_profile_handle`, and `submit_attempt` exist.
 
@@ -61,15 +61,16 @@ supabase db reset
 supabase test db
 ```
 
-The pgTAP suite in `supabase/tests/database/leaderboard.test.sql` checks public reads, denied direct writes, authentication requirements, detector bounds, rate limiting, idempotency, personal-best replacement, ordered ties, and deletion cascades.
+The pgTAP suite in `supabase/tests/database/leaderboard.test.sql` checks public reads, denied direct writes, authentication requirements, minimum detector bounds, scores above three seconds, six ordered leaders, rate limiting, idempotency, personal-best replacement, deterministic ties, and deletion cascades.
 
 ## Run on an iPhone
 
 1. Open `YEET.xcodeproj` in Xcode 26.6 or newer and let Swift Package Manager resolve Supabase 2.x.
 2. In the YEET target’s **Signing & Capabilities** pane, select team `TSKRB6UAPL` and confirm **Sign in with Apple** appears.
 3. Connect an iPhone running iOS 18 or newer, enable Developer Mode, select it as the run destination, and run the `YEET` scheme.
-4. Verify that the public leaderboard loads while signed out, then sign in, choose a handle, and complete a valid toss. The result should save once and update PB/rank.
-5. Test handle editing, sign-out, retry after temporarily disabling networking, and confirmed account deletion.
+4. Verify that the first-launch tutorial appears once and remains available from the account sheet. Confirm the fixed home dashboard shows three leaders on a short device and six on a roomy device without scrolling.
+5. Verify that the public leaderboard loads while signed out, then sign in, choose a handle, and complete a valid toss. The result should save once and update PB/rank.
+6. Test persistent POV selection, replay, branded-video export, Save to Photos, sharing, handle editing, sign-out, retry after temporarily disabling networking, and confirmed account deletion.
 
 The simulator is useful for UI, networking, and synthetic tests, but it cannot validate live freefall detection, physical haptics, native Apple credentials, or POV capture as completely as a signed physical device.
 
@@ -82,7 +83,7 @@ xcodebuild -project YEET.xcodeproj \
   test
 ```
 
-Initial detector values live in `DetectionConfig.spikeV1`. Airtime uses the first confirmed low-g sample and first confirmed landing-exit sample’s Core Motion timestamps; confirmation latency is not added to the result.
+Initial detector values live in `DetectionConfig.spikeV1`. Airtime uses the first confirmed low-g sample and first confirmed landing-exit sample’s Core Motion timestamps; confirmation latency is not added to the result. Production has no maximum airtime ceiling: confirmed landing, sensor failures or gaps, app inactivity, and the pre-throw timeout remain the terminal safeguards.
 
 ## Calibrate
 

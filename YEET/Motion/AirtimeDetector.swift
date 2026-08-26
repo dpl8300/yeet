@@ -102,7 +102,8 @@ struct AirtimeDetector: Sendable {
                 )
             }
 
-            if sample.timestamp - start > config.maximumAirtime {
+            if let maximumAirtime = config.maximumAirtime,
+               sample.timestamp - start > maximumAirtime {
                 return transition(to: .invalid(.exceededMaximumAirtime))
             }
 
@@ -125,7 +126,8 @@ struct AirtimeDetector: Sendable {
                 )
             }
 
-            if sample.timestamp - start > config.maximumAirtime {
+            if let maximumAirtime = config.maximumAirtime,
+               sample.timestamp - start > maximumAirtime {
                 return transition(to: .invalid(.exceededMaximumAirtime))
             }
             impactPeakAcceleration = 0
@@ -165,7 +167,7 @@ struct AirtimeDetector: Sendable {
         if airtime < config.minimumAirtime {
             return transition(to: .invalid(.tooShort))
         }
-        if airtime > config.maximumAirtime {
+        if let maximumAirtime = config.maximumAirtime, airtime > maximumAirtime {
             return transition(to: .invalid(.exceededMaximumAirtime))
         }
 
