@@ -12,20 +12,6 @@ enum DetectionInvalidReason: Error, Equatable, Sendable {
     case appInactive
     case sensorStalled
 
-    var debugDescription: String {
-        switch self {
-        case .noThrow: "no throw before timeout"
-        case .tooShort: "airtime below minimum"
-        case .exceededMaximumAirtime: "airtime above maximum"
-        case .sampleGap: "unsafe gap between in-flight samples"
-        case .nonMonotonicTimestamp: "duplicate or out-of-order sample timestamp"
-        case .invalidSample: "sample contained a non-finite value"
-        case .sensorUnavailable: "accelerometer unavailable"
-        case let .sensorError(message): "Core Motion error: \(message)"
-        case .appInactive: "app became inactive"
-        case .sensorStalled: "sensor updates stalled"
-        }
-    }
 }
 
 enum DetectionState: Equatable, Sendable {
@@ -36,18 +22,6 @@ enum DetectionState: Equatable, Sendable {
     case possibleLanding(start: TimeInterval, candidateEnd: TimeInterval, sampleCount: Int)
     case finished(DetectionResult)
     case invalid(DetectionInvalidReason)
-
-    var debugName: String {
-        switch self {
-        case .idle: "idle"
-        case .armed: "armed"
-        case .possibleAirborne: "possibleAirborne"
-        case .airborne: "airborne"
-        case .possibleLanding: "possibleLanding"
-        case .finished: "finished"
-        case .invalid: "invalid"
-        }
-    }
 
     var isTerminal: Bool {
         switch self {

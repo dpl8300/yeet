@@ -17,7 +17,6 @@
 		A20000000000000000000008 /* MotionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000008 /* MotionService.swift */; };
 		A20000000000000000000009 /* DetectionSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000009 /* DetectionSession.swift */; };
 		A2000000000000000000000A /* DetectionResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000A /* DetectionResult.swift */; };
-		A2000000000000000000000B /* DebugDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000B /* DebugDiagnostics.swift */; };
 		A2000000000000000000000C /* AirtimeDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000C /* AirtimeDetectorTests.swift */; };
 		A2000000000000000000000D /* YEETViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000D /* YEETViewModelTests.swift */; };
 		A2000000000000000000000E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* Assets.xcassets */; };
@@ -55,7 +54,6 @@
 		A30000000000000000000008 /* MotionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionService.swift; sourceTree = "<group>"; };
 		A30000000000000000000009 /* DetectionSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionSession.swift; sourceTree = "<group>"; };
 		A3000000000000000000000A /* DetectionResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionResult.swift; sourceTree = "<group>"; };
-		A3000000000000000000000B /* DebugDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugDiagnostics.swift; sourceTree = "<group>"; };
 		A3000000000000000000000C /* AirtimeDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirtimeDetectorTests.swift; sourceTree = "<group>"; };
 		A3000000000000000000000D /* YEETViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YEETViewModelTests.swift; sourceTree = "<group>"; };
 		A3000000000000000000000E /* YEET.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YEET.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -115,7 +113,6 @@
 				A60000000000000000000005 /* Motion */,
 				A6000000000000000000000B /* POV */,
 				A60000000000000000000006 /* Models */,
-				A60000000000000000000007 /* Debug */,
 				A6000000000000000000000F /* Configuration */,
 				A30000000000000000000011 /* Assets.xcassets */,
 				A30000000000000000000010 /* Info.plist */,
@@ -161,14 +158,6 @@
 				A3000000000000000000000A /* DetectionResult.swift */,
 			);
 			path = Models;
-			sourceTree = "<group>";
-		};
-		A60000000000000000000007 /* Debug */ = {
-			isa = PBXGroup;
-			children = (
-				A3000000000000000000000B /* DebugDiagnostics.swift */,
-			);
-			path = Debug;
 			sourceTree = "<group>";
 		};
 		A6000000000000000000000B /* POV */ = {
@@ -357,7 +346,6 @@
 				A20000000000000000000008 /* MotionService.swift in Sources */,
 				A20000000000000000000009 /* DetectionSession.swift in Sources */,
 				A2000000000000000000000A /* DetectionResult.swift in Sources */,
-				A2000000000000000000000B /* DebugDiagnostics.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

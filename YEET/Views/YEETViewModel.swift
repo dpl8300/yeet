@@ -43,9 +43,6 @@ final class YEETViewModel: ObservableObject {
     @Published private(set) var isPOVEnabled = false
     @Published private(set) var povState: POVCaptureState = .disabled
     @Published private(set) var povAlert: POVAlert?
-#if DEBUG
-    @Published private(set) var debugSnapshot: DebugSnapshot?
-#endif
 
     private let config: DetectionConfig
     private let countdownSleep: @Sendable () async throws -> Void
@@ -195,10 +192,6 @@ final class YEETViewModel: ObservableObject {
         clearPreviousPOV()
 
         motionService = motionServiceFactory()
-#if DEBUG
-        debugSnapshot = nil
-#endif
-
         state = .countdown(.three)
         let stepSleep = countdownSleep
         countdownTask = Task { [weak self, stepSleep] in
@@ -267,10 +260,9 @@ final class YEETViewModel: ObservableObject {
         service.start { [weak self] result in
             switch result {
             case let .success(sample):
-                let output = session.process(sample)
-                guard output.shouldDeliverToUI else { return }
+                guard let event = session.process(sample) else { return }
                 Task { @MainActor [weak self] in
-                    self?.receive(output, for: sessionID)
+                    self?.receive(event, for: sessionID)
                 }
 
             case .failure(.unavailable):
@@ -300,14 +292,8 @@ final class YEETViewModel: ObservableObject {
         }
     }
 
-    private func receive(_ output: DetectionSessionOutput, for sessionID: UUID) {
+    private func receive(_ event: DetectionEvent, for sessionID: UUID) {
         guard sessionID == activeSessionID else { return }
-#if DEBUG
-        if let snapshot = output.debugSnapshot {
-            debugSnapshot = snapshot
-        }
-#endif
-        guard let event = output.event else { return }
 
         switch event.state {
         case let .airborne(start):

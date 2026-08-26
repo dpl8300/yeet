@@ -36,15 +36,6 @@ struct ContentView: View {
                 attempt?.povURL = nil
             }
         }
-#if DEBUG
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let snapshot = viewModel.debugSnapshot {
-                DebugPanel(snapshot: snapshot)
-                    .padding(.horizontal, YEETTheme.pagePadding)
-                    .padding(.bottom, 8)
-            }
-        }
-#endif
         .preferredColorScheme(.light)
         .fullScreenCover(item: $replayPresentation) { replay in
             POVReplayView(url: replay.url, context: replay.context) {
@@ -1589,50 +1580,6 @@ private struct POVPlayerSurface: UIViewRepresentable {
         }
     }
 }
-
-#if DEBUG
-private struct DebugPanel: View {
-    let snapshot: DebugSnapshot
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 8) {
-                Text("DEBUG · \(snapshot.state.uppercased())")
-                Spacer(minLength: 8)
-                if let magnitude = snapshot.magnitude {
-                    Text("\(magnitude, format: .number.precision(.fractionLength(3))) g")
-                }
-                if let observedSampleRate = snapshot.observedSampleRate {
-                    Text("\(observedSampleRate, format: .number.precision(.fractionLength(1))) Hz")
-                }
-            }
-
-            Text(snapshot.lastTransition)
-                .lineLimit(1)
-
-            if snapshot.candidateStart != nil || snapshot.candidateEnd != nil {
-                HStack(spacing: 12) {
-                    if let candidateStart = snapshot.candidateStart {
-                        Text("START \(candidateStart, format: .number.precision(.fractionLength(3)))")
-                    }
-                    if let candidateEnd = snapshot.candidateEnd {
-                        Text("END \(candidateEnd, format: .number.precision(.fractionLength(3)))")
-                    }
-                }
-            }
-        }
-        .font(.caption2.monospaced())
-        .foregroundStyle(YEETTheme.paper)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .frame(maxWidth: YEETTheme.contentWidth, alignment: .leading)
-        .background(YEETTheme.ink.opacity(0.94), in: RoundedRectangle(cornerRadius: 14))
-        .allowsHitTesting(false)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Developer diagnostics")
-    }
-}
-#endif
 
 #if DEBUG
 #Preview("Tutorial") { TutorialView(onContinue: {}) }

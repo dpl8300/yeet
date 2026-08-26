@@ -85,10 +85,6 @@ xcodebuild -project YEET.xcodeproj \
 
 Initial detector values live in `DetectionConfig.spikeV1`. Airtime uses the first confirmed low-g sample and first confirmed landing-exit sample’s Core Motion timestamps; confirmation latency is not added to the result. Production has no maximum airtime ceiling: confirmed landing, sensor failures or gaps, app inactivity, and the pre-throw timeout remain the terminal safeguards.
 
-## Calibrate
-
-DEBUG builds show a throttled sensor panel. State changes and threshold crossings use unified logging. When a detector session finishes or is rejected, the Xcode console prints a `YEET_TRACE_BEGIN`/`YEET_TRACE_END` CSV block containing the full in-memory sensor trace. Use that trace to tune one category of values at a time, then replay representative sequences through the unit tests.
-
 ## Prototype boundary
 
 Basic server checks reduce casual score abuse, but they cannot prove that motion data is genuine. Handles currently have no profanity filtering, reporting, blocking, moderation tooling, or support contact flow. The leaderboard is therefore a prototype and is not ready for public App Store submission under Apple’s user-generated-content requirements.

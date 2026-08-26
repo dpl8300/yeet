@@ -12,9 +12,6 @@ struct DetectionConfig: Equatable, Sendable {
     let maximumAirtime: TimeInterval?
     let armedTimeout: TimeInterval
     let maximumInFlightSampleGap: TimeInterval
-    let diagnosticImpactThresholdG: Double
-    let debugPublishInterval: TimeInterval
-    let debugTraceCapacity: Int
 
     static let spikeV1 = DetectionConfig(
         requestedSampleInterval: 0.01,
@@ -27,9 +24,6 @@ struct DetectionConfig: Equatable, Sendable {
         minimumAirtime: 0.12,
         maximumAirtime: nil,
         armedTimeout: 15.0,
-        maximumInFlightSampleGap: 0.05,
-        diagnosticImpactThresholdG: 1.50,
-        debugPublishInterval: 0.10,
-        debugTraceCapacity: 2_500
+        maximumInFlightSampleGap: 0.05
     )
 }
