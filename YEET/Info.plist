@@ -26,6 +26,10 @@
 	<string>YEET records audio with your optional point-of-view video.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>YEET uses motion data to measure how long your iPhone is airborne.</string>
+	<key>YEETSupabaseProjectRef</key>
+	<string>$(SUPABASE_PROJECT_REF)</string>
+	<key>YEETSupabasePublishableKey</key>
+	<string>$(SUPABASE_PUBLISHABLE_KEY)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

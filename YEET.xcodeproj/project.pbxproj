@@ -22,6 +22,14 @@
 		A2000000000000000000000D /* YEETViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000D /* YEETViewModelTests.swift */; };
 		A2000000000000000000000E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* Assets.xcassets */; };
 		A2000000000000000000000F /* POVCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012 /* POVCaptureService.swift */; };
+		A20000000000000000000010 /* YEETAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013 /* YEETAppModel.swift */; };
+		A20000000000000000000011 /* BackendConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014 /* BackendConfiguration.swift */; };
+		A20000000000000000000012 /* BackendModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015 /* BackendModels.swift */; };
+		A20000000000000000000013 /* SupabaseServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000016 /* SupabaseServices.swift */; };
+		A20000000000000000000014 /* LeaderboardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000017 /* LeaderboardViews.swift */; };
+		A20000000000000000000015 /* AccountViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000018 /* AccountViews.swift */; };
+		A20000000000000000000016 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = AB0000000000000000000001 /* Supabase */; };
+		A20000000000000000000017 /* YEETAppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000001B /* YEETAppModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -53,6 +61,15 @@
 		A30000000000000000000010 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A30000000000000000000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A30000000000000000000012 /* POVCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = POVCaptureService.swift; sourceTree = "<group>"; };
+		A30000000000000000000013 /* YEETAppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YEETAppModel.swift; sourceTree = "<group>"; };
+		A30000000000000000000014 /* BackendConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConfiguration.swift; sourceTree = "<group>"; };
+		A30000000000000000000015 /* BackendModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendModels.swift; sourceTree = "<group>"; };
+		A30000000000000000000016 /* SupabaseServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseServices.swift; sourceTree = "<group>"; };
+		A30000000000000000000017 /* LeaderboardViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardViews.swift; sourceTree = "<group>"; };
+		A30000000000000000000018 /* AccountViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountViews.swift; sourceTree = "<group>"; };
+		A30000000000000000000019 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		A3000000000000000000001A /* YEET.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = YEET.entitlements; sourceTree = "<group>"; };
+		A3000000000000000000001B /* YEETAppModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YEETAppModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -60,6 +77,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A20000000000000000000016 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -86,13 +104,18 @@
 			isa = PBXGroup;
 			children = (
 				A60000000000000000000003 /* App */,
+				A6000000000000000000000C /* Backend */,
+				A6000000000000000000000D /* Leaderboard */,
+				A6000000000000000000000E /* Account */,
 				A60000000000000000000004 /* Views */,
 				A60000000000000000000005 /* Motion */,
 				A6000000000000000000000B /* POV */,
 				A60000000000000000000006 /* Models */,
 				A60000000000000000000007 /* Debug */,
+				A6000000000000000000000F /* Configuration */,
 				A30000000000000000000011 /* Assets.xcassets */,
 				A30000000000000000000010 /* Info.plist */,
+				A3000000000000000000001A /* YEET.entitlements */,
 			);
 			path = YEET;
 			sourceTree = "<group>";
@@ -101,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				A30000000000000000000001 /* YEETApp.swift */,
+				A30000000000000000000013 /* YEETAppModel.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -151,11 +175,46 @@
 			path = POV;
 			sourceTree = "<group>";
 		};
+		A6000000000000000000000C /* Backend */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000014 /* BackendConfiguration.swift */,
+				A30000000000000000000015 /* BackendModels.swift */,
+				A30000000000000000000016 /* SupabaseServices.swift */,
+			);
+			path = Backend;
+			sourceTree = "<group>";
+		};
+		A6000000000000000000000D /* Leaderboard */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000017 /* LeaderboardViews.swift */,
+			);
+			path = Leaderboard;
+			sourceTree = "<group>";
+		};
+		A6000000000000000000000E /* Account */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000018 /* AccountViews.swift */,
+			);
+			path = Account;
+			sourceTree = "<group>";
+		};
+		A6000000000000000000000F /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000019 /* Config.xcconfig */,
+			);
+			path = Configuration;
+			sourceTree = "<group>";
+		};
 		A60000000000000000000009 /* YEETTests */ = {
 			isa = PBXGroup;
 			children = (
 				A3000000000000000000000C /* AirtimeDetectorTests.swift */,
 				A3000000000000000000000D /* YEETViewModelTests.swift */,
+				A3000000000000000000001B /* YEETAppModelTests.swift */,
 			);
 			path = YEETTests;
 			sourceTree = "<group>";
@@ -185,6 +244,9 @@
 			dependencies = (
 			);
 			name = YEET;
+			packageProductDependencies = (
+				AB0000000000000000000001 /* Supabase */,
+			);
 			productName = YEET;
 			productReference = A3000000000000000000000E /* YEET.app */;
 			productType = "com.apple.product-type.application";
@@ -236,6 +298,9 @@
 			);
 			mainGroup = A60000000000000000000001;
 			productRefGroup = A6000000000000000000000A /* Products */;
+			packageReferences = (
+				AA0000000000000000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -269,6 +334,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				A20000000000000000000001 /* YEETApp.swift in Sources */,
+				A20000000000000000000010 /* YEETAppModel.swift in Sources */,
+				A20000000000000000000011 /* BackendConfiguration.swift in Sources */,
+				A20000000000000000000012 /* BackendModels.swift in Sources */,
+				A20000000000000000000013 /* SupabaseServices.swift in Sources */,
+				A20000000000000000000014 /* LeaderboardViews.swift in Sources */,
+				A20000000000000000000015 /* AccountViews.swift in Sources */,
 				A20000000000000000000002 /* ContentView.swift in Sources */,
 				A20000000000000000000003 /* YEETViewModel.swift in Sources */,
 				A2000000000000000000000F /* POVCaptureService.swift in Sources */,
@@ -289,6 +360,7 @@
 			files = (
 				A2000000000000000000000C /* AirtimeDetectorTests.swift in Sources */,
 				A2000000000000000000000D /* YEETViewModelTests.swift in Sources */,
+				A20000000000000000000017 /* YEETAppModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -348,9 +420,11 @@
 		};
 		A90000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A30000000000000000000019 /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = YEET/YEET.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = TSKRB6UAPL;
 				ENABLE_PREVIEWS = YES;
@@ -372,9 +446,11 @@
 		};
 		A90000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A30000000000000000000019 /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = YEET/YEET.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = TSKRB6UAPL;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -464,6 +540,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA0000000000000000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AB0000000000000000000001 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A10000000000000000000001 /* Project object */;
 }

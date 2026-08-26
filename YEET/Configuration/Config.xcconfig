@@ -1,0 +1,4 @@
+SUPABASE_PROJECT_REF =
+SUPABASE_PUBLISHABLE_KEY =
+
+#include? "Config.local.xcconfig"

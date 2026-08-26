@@ -3,6 +3,8 @@ DerivedData/
 build/
 *.xcuserstate
 xcuserdata/
+YEET/Configuration/Config.local.xcconfig
+supabase/.temp/
 
 # macOS metadata
 .DS_Store

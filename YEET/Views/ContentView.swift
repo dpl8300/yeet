@@ -9,6 +9,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var hapticPlayer = YEETHapticPlayer()
     @StateObject private var viewModel = YEETViewModel()
+    @StateObject private var appModel = YEETAppModel()
     @State private var replayPresentation: POVReplayPresentation?
 
     var body: some View {
@@ -19,18 +20,24 @@ struct ContentView: View {
             canStart: viewModel.canStart,
             canStartAgain: viewModel.canStartAgain,
             isPOVRecording: viewModel.isPOVRecording,
+            leaderboardState: appModel.leaderboardState,
+            accountState: appModel.accountState,
+            resultCloudState: appModel.resultCloudState,
             onStart: viewModel.start,
             onStartAgain: viewModel.startAgain,
             onPOVChange: viewModel.setPOVEnabled,
+            onOpenAccount: appModel.presentAccount,
+            onRetryScore: appModel.retryScore,
+            onRefreshLeaderboard: appModel.refreshLeaderboard,
             onViewPOV: { url, result in
                 replayPresentation = POVReplayPresentation(url: url, result: result)
             }
         )
         .onChange(of: viewModel.state) { oldState, newState in
-            guard let cue = YEETHapticCue.forTransition(from: oldState, to: newState) else {
-                return
+            appModel.handleDetectionTransition(from: oldState, to: newState)
+            if let cue = YEETHapticCue.forTransition(from: oldState, to: newState) {
+                hapticPlayer.play(cue)
             }
-            hapticPlayer.play(cue)
         }
 #if DEBUG
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -46,6 +53,11 @@ struct ContentView: View {
             POVReplayView(url: replay.url, result: replay.result) {
                 replayPresentation = nil
             }
+        }
+        .sheet(isPresented: $appModel.isAccountPresented) {
+            AccountSheet(appModel: appModel)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .alert(item: povAlertBinding) { alert in
             if alert.offersSettings {
@@ -69,12 +81,14 @@ struct ContentView: View {
             )
         }
         .onAppear {
+            appModel.start()
             viewModel.enablePOVByDefaultIfAuthorized()
             hapticPlayer.prepare()
         }
         .onChange(of: scenePhase) { _, newPhase in
             viewModel.handleScenePhase(newPhase)
             if newPhase == .active {
+                appModel.sceneBecameActive()
                 viewModel.enablePOVByDefaultIfAuthorized()
                 hapticPlayer.prepare()
             } else {
@@ -108,9 +122,15 @@ struct YEETScreen: View {
     var canStart = true
     var canStartAgain = true
     var isPOVRecording = false
+    var leaderboardState: LeaderboardLoadState = .loaded(.empty)
+    var accountState: AccountState = .signedOut
+    var resultCloudState: ResultCloudState = .idle
     let onStart: () -> Void
     let onStartAgain: () -> Void
     var onPOVChange: (Bool) -> Void = { _ in }
+    var onOpenAccount: () -> Void = {}
+    var onRetryScore: () -> Void = {}
+    var onRefreshLeaderboard: () async -> Void = {}
     var onViewPOV: (URL, DetectionResult) -> Void = { _, _ in }
 
     var body: some View {
@@ -119,8 +139,12 @@ struct YEETScreen: View {
             IdleView(
                 isPOVEnabled: isPOVEnabled,
                 povState: povState,
+                leaderboardState: leaderboardState,
+                accountState: accountState,
                 onStart: onStart,
                 onPOVChange: onPOVChange,
+                onOpenAccount: onOpenAccount,
+                onRefreshLeaderboard: onRefreshLeaderboard,
                 isEnabled: canStart
             )
 
@@ -130,16 +154,23 @@ struct YEETScreen: View {
                 IdleView(
                     isPOVEnabled: isPOVEnabled,
                     povState: povState,
+                    leaderboardState: leaderboardState,
+                    accountState: accountState,
                     onStart: {},
                     onPOVChange: { _ in },
+                    onOpenAccount: {},
+                    onRefreshLeaderboard: {},
                     isEnabled: false
                 )
             case let .result(result):
                 ResultView(
                     result: result,
                     povState: povState,
+                    cloudState: .idle,
                     onStartAgain: {},
                     onViewPOV: { _ in },
+                    onOpenAccount: {},
+                    onRetryScore: {},
                     isEnabled: false
                 )
             case .invalid:
@@ -159,8 +190,11 @@ struct YEETScreen: View {
             ResultView(
                 result: result,
                 povState: povState,
+                cloudState: resultCloudState,
                 onStartAgain: onStartAgain,
                 onViewPOV: { url in onViewPOV(url, result) },
+                onOpenAccount: onOpenAccount,
+                onRetryScore: onRetryScore,
                 isEnabled: canStartAgain
             )
 
@@ -287,7 +321,7 @@ private final class YEETHapticPlayer: ObservableObject {
     }
 }
 
-private enum YEETTheme {
+enum YEETTheme {
     static let yellow = Color(red: 1.00, green: 0.82, blue: 0.03)
     static let ink = Color(red: 0.02, green: 0.02, blue: 0.02)
     static let paper = Color.white
@@ -319,15 +353,37 @@ private struct YEETPage<Content: View>: View {
 private struct IdleView: View {
     let isPOVEnabled: Bool
     let povState: POVCaptureState
+    let leaderboardState: LeaderboardLoadState
+    let accountState: AccountState
     let onStart: () -> Void
     let onPOVChange: (Bool) -> Void
+    let onOpenAccount: () -> Void
+    let onRefreshLeaderboard: () async -> Void
     var isEnabled = true
 
     var body: some View {
         YEETPage(background: YEETTheme.paper) {
             VStack(spacing: 0) {
-                YEETWordmark(size: 54)
-                    .padding(.top, 10)
+                HStack {
+                    Spacer().frame(width: 42)
+                    Spacer()
+                    YEETWordmark(size: 48)
+                    Spacer()
+                    Button(action: onOpenAccount) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.title3.weight(.black))
+                            .foregroundStyle(YEETTheme.ink)
+                            .frame(width: 42, height: 42)
+                            .background(YEETTheme.ink.opacity(0.05), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Account settings")
+                    .accessibilityIdentifier("yeet.account.settings")
+                }
+                .padding(.top, 8)
+
+                PersonalBestRankCard(state: leaderboardState)
+                    .padding(.top, 18)
 
                 YEETHeroButton(action: onStart)
                     .disabled(!isEnabled)
@@ -335,7 +391,7 @@ private struct IdleView: View {
                         isEnabled ? "Starts listening for a phone toss" : "Countdown starting"
                     )
                     .accessibilityIdentifier("yeet.start")
-                    .padding(.top, 54)
+                    .padding(.top, 22)
 
                 POVToggleRow(
                     isOn: isPOVEnabled,
@@ -345,9 +401,18 @@ private struct IdleView: View {
                 .disabled(!isEnabled || povState == .preparing)
                 .padding(.top, 22)
 
-                Spacer(minLength: 80)
+                EmbeddedLeaderboardView(
+                    state: leaderboardState,
+                    accountState: accountState,
+                    onSignIn: onOpenAccount,
+                    onRetry: { Task { await onRefreshLeaderboard() } }
+                )
+                .padding(.top, 30)
+
+                Spacer(minLength: 30)
             }
         }
+        .refreshable { await onRefreshLeaderboard() }
         .accessibilityIdentifier(isEnabled ? "yeet.state.idle" : "yeet.state.preparing")
     }
 }
@@ -583,8 +648,11 @@ private struct RecordingBadge: View {
 private struct ResultView: View {
     let result: DetectionResult
     let povState: POVCaptureState
+    let cloudState: ResultCloudState
     let onStartAgain: () -> Void
     let onViewPOV: (URL) -> Void
+    let onOpenAccount: () -> Void
+    let onRetryScore: () -> Void
     var isEnabled = true
 
     @ScaledMetric(relativeTo: .largeTitle) private var resultSize: CGFloat = 104
@@ -620,7 +688,14 @@ private struct ResultView: View {
                     .foregroundStyle(YEETTheme.muted)
                     .padding(.top, -2)
 
-                Spacer(minLength: 86)
+                ResultLeaderboardPrompt(
+                    state: cloudState,
+                    onSignIn: onOpenAccount,
+                    onRetry: onRetryScore
+                )
+                .padding(.top, 28)
+
+                Spacer(minLength: 46)
 
                 YEETPrimaryButton(title: "YEET AGAIN", action: onStartAgain)
                     .disabled(!isEnabled)
@@ -1171,6 +1246,15 @@ private struct DebugPanel: View {
                 airborneSampleCount: 162
             )
         ),
+        leaderboardState: .loaded(
+            LeaderboardSnapshot(
+                leaders: [],
+                currentUser: nil,
+                candidateRank: 56,
+                totalPlayers: 2_000
+            )
+        ),
+        resultCloudState: .guest(rank: 56),
         onStart: {},
         onStartAgain: {}
     )
