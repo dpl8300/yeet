@@ -1,87 +1,33 @@
 import Foundation
 import SwiftUI
 
-struct PersonalBestRankCard: View {
-    let state: LeaderboardLoadState
-
-    private var currentUser: LeaderboardEntry? {
-        state.snapshot?.currentUser
-    }
-
-    var body: some View {
-        HStack(spacing: 0) {
-            metric(
-                title: "PB",
-                value: currentUser?.airtimeMilliseconds.map(LeaderboardFormat.heroAirtime) ?? "—"
-            )
-
-            Rectangle()
-                .fill(YEETTheme.ink.opacity(0.10))
-                .frame(width: 1, height: 40)
-
-            metric(
-                title: "RANK",
-                value: currentUser?.rank.map(LeaderboardFormat.rank) ?? "—"
-            )
-        }
-        .padding(.vertical, 14)
-        .background(YEETTheme.paper, in: RoundedRectangle(cornerRadius: 18))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(YEETTheme.ink.opacity(0.12), lineWidth: 1)
-        }
-        .shadow(color: YEETTheme.ink.opacity(0.08), radius: 6, y: 3)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(summaryAccessibilityLabel)
-    }
-
-    private func metric(title: String, value: String) -> some View {
-        VStack(spacing: 2) {
-            Text(title)
-                .font(.caption2.weight(.black))
-                .tracking(0.7)
-                .foregroundStyle(YEETTheme.muted)
-            Text(value)
-                .font(.title2.weight(.black))
-                .fontWidth(.compressed)
-                .monospacedDigit()
-                .foregroundStyle(YEETTheme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var summaryAccessibilityLabel: String {
-        guard let currentUser else { return "No personal best or rank yet" }
-        let airtime = currentUser.airtimeMilliseconds.map(LeaderboardFormat.airtime) ?? "none"
-        let rank = currentUser.rank.map(LeaderboardFormat.rank) ?? "unranked"
-        return "Personal best \(airtime), rank \(rank)"
-    }
-}
-
 struct EmbeddedLeaderboardView: View {
     let state: LeaderboardLoadState
     let accountState: AccountState
-    var maximumLeaderCount = 6
+    var maximumLeaderCount = 10
     var isCompact = false
     let onSignIn: () -> Void
     let onRetry: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack {
+        VStack(spacing: 14) {
+            ZStack {
                 Text("GLOBAL LEADERBOARD")
-                    .font(isCompact ? .system(size: 13, weight: .black) : .caption.weight(.black))
-                    .tracking(0.7)
+                    .font(.system(size: isCompact ? 18 : 20, weight: .black))
+                    .tracking(0.9)
                     .foregroundStyle(YEETTheme.ink)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.45)
-                Spacer()
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
+
                 if case .loading = state {
-                    ProgressView().controlSize(.small).tint(YEETTheme.ink)
+                    HStack {
+                        Spacer()
+                        ProgressView().controlSize(.small).tint(YEETTheme.ink)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity)
 
             content
         }
@@ -122,13 +68,13 @@ struct EmbeddedLeaderboardView: View {
     @ViewBuilder
     private func leaderboard(snapshot: LeaderboardSnapshot, isStale: Bool) -> some View {
         let displayedLeaders = Array(snapshot.leaders.prefix(maximumLeaderCount))
-        if snapshot.leaders.isEmpty {
-            LeaderboardMessage(
-                title: "BE THE FIRST TO RANK",
-                detail: "Complete a valid YEET and save your score."
-            )
-        } else {
-            VStack(spacing: 6) {
+        VStack(spacing: 2) {
+            if snapshot.leaders.isEmpty {
+                LeaderboardMessage(
+                    title: "BE THE FIRST TO RANK",
+                    detail: "Complete a valid YEET and save your score."
+                )
+            } else {
                 ForEach(displayedLeaders) { entry in
                     LeaderboardRow(
                         entry: entry,
@@ -137,35 +83,34 @@ struct EmbeddedLeaderboardView: View {
                     )
                 }
             }
-        }
 
-        if let currentUser = snapshot.currentUser,
-           !displayedLeaders.contains(where: { $0.userID == currentUser.userID }) {
-            Divider().padding(.vertical, 2)
-            LeaderboardRow(entry: currentUser, isHighlighted: true, isCompact: isCompact)
-        } else if case .signedOut = accountState {
-            Button(action: onSignIn) {
-                HStack {
-                    Text("YOUR RANK")
-                    Spacer()
-                    Text("SIGN IN TO SAVE")
+            if let currentUser = snapshot.currentUser,
+               !displayedLeaders.contains(where: { $0.userID == currentUser.userID }) {
+                LeaderboardRow(entry: currentUser, isHighlighted: true, isCompact: isCompact)
+            } else if case .signedOut = accountState {
+                Button(action: onSignIn) {
+                    HStack {
+                        Text("YOUR RANK")
+                        Spacer()
+                        Text("SIGN IN TO SAVE")
+                    }
+                    .font(.system(size: isCompact ? 14 : 15, weight: .black))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.45)
+                    .foregroundStyle(YEETTheme.ink)
+                    .padding(.horizontal, 14)
+                    .frame(height: isCompact ? 46 : 50)
+                    .background(YEETTheme.yellow, in: Capsule())
                 }
-                .font(isCompact ? .system(size: 13, weight: .black) : .caption.weight(.black))
-                .lineLimit(1)
-                .minimumScaleFactor(0.45)
-                .foregroundStyle(YEETTheme.ink)
-                .padding(.horizontal, 14)
-                .frame(height: 44)
-                .background(YEETTheme.yellow, in: Capsule())
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("yeet.account.signInFromLeaderboard")
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("yeet.account.signInFromLeaderboard")
-        }
 
-        if isStale {
-            Text("Showing saved rankings")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(YEETTheme.muted)
+            if isStale {
+                Text("Showing saved rankings")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(YEETTheme.muted)
+            }
         }
     }
 
@@ -191,42 +136,41 @@ private struct LeaderboardRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(entry.rank.map { "#\($0.formatted())" } ?? "—")
-                .font(isCompact ? .system(size: 13, weight: .black) : .caption.weight(.black))
+                .font(.system(size: isCompact ? 14 : 15, weight: .black))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.45)
-                .frame(width: 38, alignment: .leading)
-
-            LeaderboardInitialBadge(handle: entry.handle)
+                .frame(width: 42, alignment: .leading)
 
             Text("@\(entry.handle)")
                 .font(
                     isCompact
-                        ? .system(size: 14, weight: isHighlighted ? .black : .semibold)
-                        : .subheadline.weight(isHighlighted ? .black : .semibold)
+                        ? .system(size: 15, weight: isHighlighted ? .black : .semibold)
+                        : .system(size: 16, weight: isHighlighted ? .black : .semibold)
                 )
                 .lineLimit(1)
-                .minimumScaleFactor(0.45)
+                .minimumScaleFactor(0.7)
+                .layoutPriority(1)
 
             Spacer(minLength: 8)
 
             Text(entry.airtimeMilliseconds.map(LeaderboardFormat.airtime) ?? "—")
-                .font(isCompact ? .system(size: 14, weight: .black) : .subheadline.weight(.black))
+                .font(.system(size: isCompact ? 15 : 16, weight: .black))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.45)
         }
         .foregroundStyle(YEETTheme.ink)
         .padding(.horizontal, 12)
-        .frame(height: isCompact ? 38 : 40)
+        .frame(height: isCompact ? 42 : 46)
         .background(
             isHighlighted ? YEETTheme.yellow : YEETTheme.paper,
             in: RoundedRectangle(cornerRadius: 12)
         )
         .overlay {
-            if !isHighlighted {
+            if isHighlighted {
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(YEETTheme.ink.opacity(0.08), lineWidth: 1)
+                    .stroke(YEETTheme.ink.opacity(0.22), lineWidth: 1)
             }
         }
         .accessibilityElement(children: .combine)
@@ -234,25 +178,6 @@ private struct LeaderboardRow: View {
             "Rank \(entry.rank?.formatted() ?? "unranked"), \(entry.handle), "
                 + (entry.airtimeMilliseconds.map(LeaderboardFormat.airtime) ?? "no score")
         )
-    }
-}
-
-private struct LeaderboardInitialBadge: View {
-    let handle: String
-
-    private let colors: [Color] = [
-        .purple, .orange, .blue, .green, .pink, .indigo
-    ]
-
-    var body: some View {
-        let scalarTotal = handle.unicodeScalars.reduce(0) { $0 + Int($1.value) }
-        let color = colors[scalarTotal % colors.count]
-        Text(String(handle.prefix(1)).uppercased())
-            .font(.caption2.weight(.black))
-            .foregroundStyle(Color.white)
-            .frame(width: 26, height: 26)
-            .background(color, in: Circle())
-            .accessibilityHidden(true)
     }
 }
 

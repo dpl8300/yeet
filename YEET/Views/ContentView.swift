@@ -517,14 +517,17 @@ private struct TutorialView: View {
 
                 Spacer(minLength: 18)
 
-                Button("LET’S YEET", action: onContinue)
-                    .font(.subheadline.weight(.black))
-                    .foregroundStyle(Color.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(YEETTheme.ink, in: Capsule())
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("yeet.onboarding.continue")
+                Button(action: onContinue) {
+                    Text("LET’S YEET")
+                        .font(.subheadline.weight(.black))
+                        .foregroundStyle(Color.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(YEETTheme.ink, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("yeet.onboarding.continue")
 
                 Text("YEET responsibly. Use a clear, safe area and never throw toward people, animals, traffic, or anything you don’t want to hit.")
                     .font(.caption2.weight(.medium))
@@ -590,20 +593,24 @@ private struct IdleView: View {
         GeometryReader { proxy in
             let isShort = proxy.size.height < 720
             let isAccessibility = dynamicTypeSize.isAccessibilitySize
-            let leaderCount = isAccessibility ? 1 : (isShort ? 3 : 6)
+            let isCompact = isShort || isAccessibility
+            let leaderCount = leaderboardSlotCount(
+                availableHeight: proxy.size.height,
+                isCompact: isCompact,
+                isAccessibility: isAccessibility
+            )
 
             VStack(spacing: 0) {
                 HStack {
-                    Spacer().frame(width: 42)
+                    Spacer().frame(width: 44)
                     Spacer()
                     YEETWordmark(size: 48)
                     Spacer()
                     Button(action: onOpenAccount) {
                         Image(systemName: "gearshape.fill")
-                            .font(.title3.weight(.black))
+                            .font(.system(size: 22, weight: .black))
                             .foregroundStyle(YEETTheme.ink)
-                            .frame(width: 42, height: 42)
-                            .background(YEETTheme.ink.opacity(0.05), in: Circle())
+                            .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Account settings")
@@ -611,37 +618,39 @@ private struct IdleView: View {
                 }
                 .padding(.top, isShort ? 2 : 8)
 
-                PersonalBestRankCard(state: leaderboardState)
-                    .padding(.top, isShort ? 8 : 14)
-
-                YEETHeroButton(action: onStart, isCompact: isShort || isAccessibility)
-                    .disabled(!isEnabled)
-                    .accessibilityHint(
-                        isEnabled ? "Starts listening for a phone toss" : "Countdown starting"
-                    )
-                    .accessibilityIdentifier("yeet.start")
-                    .padding(.top, isShort ? 10 : 16)
-
-                POVToggleRow(
-                    isOn: isPOVEnabled,
-                    isPreparing: povState == .preparing,
-                    isCompact: isShort || isAccessibility,
-                    onChange: onPOVChange
-                )
-                .disabled(!isEnabled || povState == .preparing)
-                .padding(.top, isShort ? 8 : 12)
-
                 EmbeddedLeaderboardView(
                     state: leaderboardState,
                     accountState: accountState,
                     maximumLeaderCount: leaderCount,
-                    isCompact: isShort || isAccessibility,
+                    isCompact: isCompact,
                     onSignIn: onOpenAccount,
                     onRetry: { Task { await onRefreshLeaderboard() } }
                 )
                 .padding(.top, isShort ? 10 : 16)
 
-                Spacer(minLength: 4)
+                Spacer(minLength: isShort ? 4 : 8)
+
+                Divider()
+                    .overlay(YEETTheme.ink.opacity(0.12))
+                    .padding(.top, isShort ? 6 : 10)
+                    .padding(.bottom, isShort ? 8 : 12)
+
+                POVToggleRow(
+                    isOn: isPOVEnabled,
+                    isPreparing: povState == .preparing,
+                    isCompact: isCompact,
+                    onChange: onPOVChange
+                )
+                .disabled(!isEnabled || povState == .preparing)
+
+                YEETHeroButton(action: onStart, isCompact: isCompact)
+                    .disabled(!isEnabled)
+                    .accessibilityHint(
+                        isEnabled ? "Starts listening for a phone toss" : "Countdown starting"
+                    )
+                    .accessibilityIdentifier("yeet.start")
+                    .padding(.top, isShort ? 8 : 12)
+                    .padding(.bottom, isShort ? 6 : 12)
             }
             .frame(maxWidth: YEETTheme.contentWidth, maxHeight: .infinity)
             .padding(.horizontal, isShort ? 16 : YEETTheme.pagePadding)
@@ -649,6 +658,24 @@ private struct IdleView: View {
         }
         .background(YEETTheme.paper.ignoresSafeArea())
         .accessibilityIdentifier(isEnabled ? "yeet.state.idle" : "yeet.state.preparing")
+    }
+
+    private func leaderboardSlotCount(
+        availableHeight: CGFloat,
+        isCompact: Bool,
+        isAccessibility: Bool
+    ) -> Int {
+        guard !isAccessibility else { return 3 }
+
+        // Reserve room for the header, leaderboard heading, an additional
+        // user/sign-in row, separator, POV setting, bottom CTA, and breathing room.
+        let reservedHeight: CGFloat = isCompact ? 319 : 380
+        let leaderboardRowPitch: CGFloat = isCompact ? 44 : 48
+        let availableSlots = Int(
+            ((availableHeight - reservedHeight) / leaderboardRowPitch).rounded(.down)
+        )
+
+        return min(10, max(3, availableSlots))
     }
 }
 
@@ -1291,54 +1318,25 @@ private struct YEETHeroButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                YEETBurstMark()
-
-                Text("YEET")
-                    .font(.system(size: isCompact ? 38 : titleSize, weight: .black, design: .default))
-                    .fontWidth(.compressed)
-                    .italic()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-
-                YEETBurstMark()
-                    .scaleEffect(x: -1)
-            }
-            .foregroundStyle(YEETTheme.ink)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: isCompact ? 72 : 88)
-            .padding(.horizontal, 20)
-            .background(YEETTheme.yellow, in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(YEETTheme.ink, lineWidth: YEETTheme.strokeWidth)
-            }
-            .shadow(color: YEETTheme.ink.opacity(0.16), radius: 7, y: 5)
+            Text("YEET")
+                .font(.system(size: isCompact ? 38 : titleSize, weight: .black, design: .default))
+                .fontWidth(.compressed)
+                .italic()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .rotationEffect(.degrees(-3))
+                .foregroundStyle(YEETTheme.ink)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: isCompact ? 72 : 88)
+                .padding(.horizontal, 20)
+                .background(YEETTheme.yellow, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(YEETTheme.ink, lineWidth: YEETTheme.strokeWidth)
+                }
+                .shadow(color: YEETTheme.ink.opacity(0.16), radius: 7, y: 5)
         }
         .buttonStyle(.plain)
-    }
-}
-
-private struct YEETBurstMark: View {
-    var body: some View {
-        ZStack {
-            Capsule()
-                .frame(width: 3, height: 11)
-                .offset(x: -8, y: -7)
-                .rotationEffect(.degrees(-34))
-
-            Capsule()
-                .frame(width: 3, height: 13)
-                .offset(x: -12, y: 4)
-                .rotationEffect(.degrees(-78))
-
-            Capsule()
-                .frame(width: 3, height: 10)
-                .offset(x: -5, y: 11)
-                .rotationEffect(.degrees(-122))
-        }
-        .frame(width: 28, height: 34)
-        .accessibilityHidden(true)
     }
 }
 

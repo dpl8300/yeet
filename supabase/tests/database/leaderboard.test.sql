@@ -80,6 +80,30 @@ insert into auth.users (
         '00000000-0000-0000-0000-000000000000',
         'authenticated', 'authenticated', 'golf@example.test', '', now(),
         '{"provider":"apple","providers":["apple"]}', '{}', now(), now()
+    ),
+    (
+        '80000000-0000-0000-0000-000000000008',
+        '00000000-0000-0000-0000-000000000000',
+        'authenticated', 'authenticated', 'hotel@example.test', '', now(),
+        '{"provider":"apple","providers":["apple"]}', '{}', now(), now()
+    ),
+    (
+        '90000000-0000-0000-0000-000000000009',
+        '00000000-0000-0000-0000-000000000000',
+        'authenticated', 'authenticated', 'india@example.test', '', now(),
+        '{"provider":"apple","providers":["apple"]}', '{}', now(), now()
+    ),
+    (
+        'a0000000-0000-0000-0000-00000000000a',
+        '00000000-0000-0000-0000-000000000000',
+        'authenticated', 'authenticated', 'juliet@example.test', '', now(),
+        '{"provider":"apple","providers":["apple"]}', '{}', now(), now()
+    ),
+    (
+        'b0000000-0000-0000-0000-00000000000b',
+        '00000000-0000-0000-0000-000000000000',
+        'authenticated', 'authenticated', 'kilo@example.test', '', now(),
+        '{"provider":"apple","providers":["apple"]}', '{}', now(), now()
     );
 
 set local role authenticated;
@@ -239,7 +263,11 @@ reset role;
 insert into public.profiles (id, handle) values
     ('50000000-0000-0000-0000-000000000005', 'echo'),
     ('60000000-0000-0000-0000-000000000006', 'foxtrot'),
-    ('70000000-0000-0000-0000-000000000007', 'golf');
+    ('70000000-0000-0000-0000-000000000007', 'golf'),
+    ('80000000-0000-0000-0000-000000000008', 'hotel'),
+    ('90000000-0000-0000-0000-000000000009', 'india'),
+    ('a0000000-0000-0000-0000-00000000000a', 'juliet'),
+    ('b0000000-0000-0000-0000-00000000000b', 'kilo');
 insert into public.attempts (
     client_attempt_id, user_id, airtime_ms, preflight_peak_g,
     impact_peak_g, airborne_sample_count, created_at
@@ -258,6 +286,26 @@ insert into public.attempts (
         '70000000-0000-0000-0000-000000000070',
         '70000000-0000-0000-0000-000000000007', 1300, 1.8, 2.2, 130,
         now() - interval '6 minutes'
+    ),
+    (
+        '80000000-0000-0000-0000-000000000080',
+        '80000000-0000-0000-0000-000000000008', 1200, 1.8, 2.2, 120,
+        now() - interval '7 minutes'
+    ),
+    (
+        '90000000-0000-0000-0000-000000000090',
+        '90000000-0000-0000-0000-000000000009', 1100, 1.8, 2.2, 110,
+        now() - interval '8 minutes'
+    ),
+    (
+        'a0000000-0000-0000-0000-0000000000a0',
+        'a0000000-0000-0000-0000-00000000000a', 1000, 1.8, 2.2, 100,
+        now() - interval '9 minutes'
+    ),
+    (
+        'b0000000-0000-0000-0000-0000000000b0',
+        'b0000000-0000-0000-0000-00000000000b', 900, 1.8, 2.2, 90,
+        now() - interval '10 minutes'
     );
 insert into public.personal_bests (user_id, attempt_id, airtime_ms, achieved_at) values
     (
@@ -274,16 +322,36 @@ insert into public.personal_bests (user_id, attempt_id, airtime_ms, achieved_at)
         '70000000-0000-0000-0000-000000000007',
         '70000000-0000-0000-0000-000000000070', 1300,
         now() - interval '6 minutes'
+    ),
+    (
+        '80000000-0000-0000-0000-000000000008',
+        '80000000-0000-0000-0000-000000000080', 1200,
+        now() - interval '7 minutes'
+    ),
+    (
+        '90000000-0000-0000-0000-000000000009',
+        '90000000-0000-0000-0000-000000000090', 1100,
+        now() - interval '8 minutes'
+    ),
+    (
+        'a0000000-0000-0000-0000-00000000000a',
+        'a0000000-0000-0000-0000-0000000000a0', 1000,
+        now() - interval '9 minutes'
+    ),
+    (
+        'b0000000-0000-0000-0000-00000000000b',
+        'b0000000-0000-0000-0000-0000000000b0', 900,
+        now() - interval '10 minutes'
     );
 select extensions.is(
     jsonb_array_length(public.leaderboard_snapshot(null)->'leaders'),
-    6,
-    'the snapshot returns six leaders'
+    10,
+    'the snapshot returns ten leaders'
 );
 select extensions.is(
-    public.leaderboard_snapshot(null)->'leaders'->5->>'handle',
-    'golf',
-    'all six leaders remain in deterministic score order'
+    public.leaderboard_snapshot(null)->'leaders'->9->>'handle',
+    'kilo',
+    'all ten leaders remain in deterministic score order'
 );
 
 set local role authenticated;
