@@ -1,11 +1,33 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(29);
+select extensions.plan(31);
 
 select extensions.has_table('public', 'profiles', 'profiles exists');
 select extensions.has_table('public', 'attempts', 'attempts exists');
 select extensions.has_table('public', 'personal_bests', 'personal_bests exists');
+
+select extensions.ok(
+    not has_function_privilege(
+        'authenticated',
+        'public.submit_attempt(uuid,integer,double precision,double precision,integer)',
+        'execute'
+    ),
+    'authenticated browser clients cannot record derived scores directly'
+);
+select extensions.ok(
+    not has_function_privilege(
+        'authenticated',
+        'public.submit_validated_attempt(uuid,uuid,integer,double precision,double precision,integer)',
+        'execute'
+    ),
+    'authenticated browser clients cannot call the service-only recorder'
+);
+
+-- The remainder of this legacy behavior suite calls the old RPC to exercise its
+-- idempotency/rate/PB/rank logic inside this rolled-back test transaction only.
+grant execute on function public.submit_attempt(uuid, integer, double precision, double precision, integer)
+    to anon, authenticated;
 
 set local role anon;
 select extensions.lives_ok(

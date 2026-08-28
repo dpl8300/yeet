@@ -3,8 +3,20 @@ DerivedData/
 build/
 *.xcuserstate
 xcuserdata/
-YEET/Configuration/Config.local.xcconfig
+apps/ios/YEET/Configuration/Config.local.xcconfig
+apps/ios/Build/
+
+# Supabase CLI state
 supabase/.temp/
+
+# Web build and local environment
+node_modules/
+dist/
+.env
+.env.local
+.vercel/
+coverage/
+*.xcresult
 
 # macOS metadata
 .DS_Store

@@ -1,0 +1,17 @@
+{
+  "valid": [
+    { "t_ms": 0, "ax_ms2": 0, "ay_ms2": 0, "az_ms2": 9.80665 },
+    { "t_ms": 10, "ax_ms2": 0, "ay_ms2": 0, "az_ms2": 9.80665 },
+    { "t_ms": 20, "ax_ms2": 0, "ay_ms2": 0, "az_ms2": 1.0 },
+    { "t_ms": 30, "ax_ms2": 0, "ay_ms2": 0, "az_ms2": 1.0 },
+    { "t_ms": 40, "ax_ms2": 0, "ay_ms2": 0, "az_ms2": 1.0 },
+    { "t_ms": 50, "ax_ms2": 0, "ay_ms2": 0, "az_ms2": 1.0 },
+    { "t_ms": 100, "ax_ms2": 0, "ay_ms2": 0, "az_ms2": 1.0 },
+    { "t_ms": 150, "ax_ms2": 0, "ay_ms2": 0, "az_ms2": 1.0 },
+    { "t_ms": 200, "ax_ms2": 0, "ay_ms2": 0, "az_ms2": 1.0 },
+    { "t_ms": 250, "ax_ms2": 0, "ay_ms2": 0, "az_ms2": 7.0 },
+    { "t_ms": 260, "ax_ms2": 0, "ay_ms2": 0, "az_ms2": 7.0 },
+    { "t_ms": 270, "ax_ms2": 0, "ay_ms2": 0, "az_ms2": 7.0 }
+  ],
+  "expectedAirtimeMs": 230
+}

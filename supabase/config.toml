@@ -2,3 +2,6 @@ project_id = "yeet"
 
 [functions.delete-account]
 verify_jwt = true
+
+[functions.submit-attempt]
+verify_jwt = true
