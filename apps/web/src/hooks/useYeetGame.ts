@@ -7,7 +7,7 @@ import {
   requestWakeLock,
   runStationaryPreflight
 } from "../lib/device-motion";
-import { POVRecorder, supportsFullPovPipeline } from "../lib/pov";
+import { POVRecorder, supportsPovRecording } from "../lib/pov";
 
 export type CompletedAttempt = {
   id: string;
@@ -46,8 +46,8 @@ export function useYeetGame() {
   }, [cleanup]);
 
   const setPov = useCallback((enabled: boolean) => {
-    if (enabled && !supportsFullPovPipeline()) {
-      setPovMessage("POV needs camera, microphone, canvas capture, and a compatible video encoder on this browser.");
+    if (enabled && !supportsPovRecording()) {
+      setPovMessage("POV recording needs camera, microphone, and MediaRecorder support in this browser.");
       setPovEnabled(false);
       localStorage.setItem("yeet.pov", "false");
       return;
@@ -95,7 +95,7 @@ export function useYeetGame() {
           recorder = undefined;
           setPovEnabled(false);
           localStorage.setItem("yeet.pov", "false");
-          setPovMessage("POV was disabled because this device could not prepare the full camera, microphone, and export pipeline.");
+          setPovMessage("POV was disabled because this device could not prepare the camera and microphone.");
         }
       }
       wakeLock = await requestWakeLock();

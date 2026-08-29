@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, Share2 } from "lucide-react";
-import { createBrandedVideo, shareOrDownload } from "../lib/pov";
+import { createBrandedVideo, shareOrDownload, supportsBrandedPovExport } from "../lib/pov";
 import { Button } from "./ui/Button";
 import { Dialog } from "./ui/Dialog";
 
@@ -14,13 +14,14 @@ export function POVDialog({ open, onOpenChange, blob, airtimeMs, rank }: {
   const url = useMemo(() => URL.createObjectURL(blob), [blob]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
+  const canBrand = supportsBrandedPovExport();
   useEffect(() => () => URL.revokeObjectURL(url), [url]);
 
   const exportVideo = async () => {
-    setBusy(true); setMessage("Building your branded video…");
+    setBusy(true); setMessage(canBrand ? "Building your branded video…" : "Preparing your POV…");
     try {
-      const branded = await createBrandedVideo(blob, airtimeMs, rank);
-      await shareOrDownload(branded);
+      const video = canBrand ? await createBrandedVideo(blob, airtimeMs, rank) : blob;
+      await shareOrDownload(video);
       setMessage("Ready to fly.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The branded export failed.");
@@ -30,7 +31,7 @@ export function POVDialog({ open, onOpenChange, blob, airtimeMs, rank }: {
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title="YOUR POV" description="The raw recording stays on this device and disappears when you leave.">
       <video className="pov-video" src={url} playsInline controls />
-      <Button disabled={busy} onClick={exportVideo}>{typeof navigator.share === "function" ? <Share2 /> : <Download />}{busy ? "PROCESSING…" : "BRAND & SHARE"}</Button>
+      <Button disabled={busy} onClick={exportVideo}>{typeof navigator.share === "function" ? <Share2 /> : <Download />}{busy ? "PROCESSING…" : canBrand ? "BRAND & SHARE" : "SHARE POV"}</Button>
       {message && <p className="status-message" role="status">{message}</p>}
     </Dialog>
   );

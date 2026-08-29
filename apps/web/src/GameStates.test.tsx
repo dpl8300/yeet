@@ -39,9 +39,9 @@ describe("gameplay and result states", () => {
     expect(screen.getByText("0.50")).toBeInTheDocument();
   });
 
-  it("renders device-local POV replay controls", () => {
+  it("falls back to sharing the raw device-local POV when branded export is unavailable", () => {
     wrap(<POVDialog open onOpenChange={noop} blob={new Blob(["video"], { type: "video/webm" })} airtimeMs={500} />);
     expect(screen.getByText("YOUR POV")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /BRAND & SHARE/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /SHARE POV/ })).toBeInTheDocument();
   });
 });
