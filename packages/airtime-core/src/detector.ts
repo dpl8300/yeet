@@ -4,7 +4,7 @@ import {
   type DetectionState,
   type MotionSample,
   SPIKE_V1_CONFIG
-} from "./types";
+} from "./types.ts";
 
 const magnitude = (sample: MotionSample) => Math.hypot(sample.x, sample.y, sample.z);
 const finiteSample = (sample: MotionSample) =>

@@ -1,3 +1,3 @@
-export * from "./types";
-export * from "./detector";
-export * from "./validation";
+export * from "./types.ts";
+export * from "./detector.ts";
+export * from "./validation.ts";

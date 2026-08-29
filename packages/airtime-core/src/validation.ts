@@ -1,11 +1,11 @@
-import { AirtimeDetector } from "./detector";
+import { AirtimeDetector } from "./detector.ts";
 import {
   type DetectionResult,
   type MotionSample,
   type PreflightResult,
   type RawTraceSample,
   STANDARD_GRAVITY_MS2
-} from "./types";
+} from "./types.ts";
 
 function percentile(sorted: number[], p: number) {
   return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * p) - 1))];
