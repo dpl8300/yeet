@@ -18,7 +18,7 @@ export function LeaderboardDialog({ open, onOpenChange, snapshot, stale, error }
         {!snapshot?.leaders.length && <div className="empty-state"><Trophy /><b>NO SCORES YET</b><span>Be the first to claim the board.</span></div>}
         {snapshot?.leaders.map((entry) => (
           <div className="leader-row leader-row-large" key={entry.user_id}>
-            <strong>{String(entry.rank).padStart(2, "0")}</strong>
+            <strong>{entry.rank == null ? "—" : `#${entry.rank}`}</strong>
             <span>@{entry.handle}</span>
             <b>{formatSeconds(entry.airtime_ms)}</b>
           </div>

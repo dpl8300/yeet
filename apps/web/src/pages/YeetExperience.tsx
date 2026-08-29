@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import {
@@ -101,12 +101,33 @@ function Tutorial({ onContinue }: { onContinue: () => void }) {
 }
 
 function LeaderboardPreview({ snapshot, loading, failed, onOpen }: { snapshot?: LeaderboardSnapshot; loading: boolean; failed: boolean; onOpen: () => void }) {
-  const entries = snapshot?.leaders.slice(0, 3) ?? [];
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [visibleRows, setVisibleRows] = useState(3);
+  const leaders = snapshot?.leaders ?? [];
+
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    const updateVisibleRows = () => {
+      if (card.clientHeight === 0) return;
+      const header = card.querySelector<HTMLElement>(".section-title");
+      const availableHeight = card.clientHeight - (header?.offsetHeight ?? 0);
+      const nextCount = Math.min(10, Math.max(0, Math.floor(availableHeight / 44)));
+      setVisibleRows((current) => current === nextCount ? current : nextCount);
+    };
+    updateVisibleRows();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateVisibleRows);
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, []);
+
+  const entries = leaders.slice(0, visibleRows);
   return (
-    <div className="leaderboard-card">
+    <div className="leaderboard-card" ref={cardRef}>
       <button className="section-title" onClick={onOpen}><span>WORLD LEADERS</span><span>{failed ? <CloudOff /> : loading ? "SYNC" : "LIVE"}</span></button>
-      {!entries.length && <button className="empty-preview" onClick={onOpen}>{failed || !isSupabaseConfigured ? "LEADERBOARD UNAVAILABLE" : loading ? "LOADING SCORES…" : "BE FIRST ON THE BOARD"}</button>}
-      {entries.map((entry) => <button className="leader-row" onClick={onOpen} key={entry.user_id}><strong>{String(entry.rank).padStart(2, "0")}</strong><span>@{entry.handle}</span><b>{formatSeconds(entry.airtime_ms)}</b></button>)}
+      {!leaders.length && <button className="empty-preview" onClick={onOpen}>{failed || !isSupabaseConfigured ? "LEADERBOARD UNAVAILABLE" : loading ? "LOADING SCORES…" : "BE FIRST ON THE BOARD"}</button>}
+      {entries.map((entry) => <button className="leader-row" onClick={onOpen} key={entry.user_id}><strong>{entry.rank == null ? "—" : `#${entry.rank}`}</strong><span>@{entry.handle}</span><b>{formatSeconds(entry.airtime_ms)}</b></button>)}
     </div>
   );
 }

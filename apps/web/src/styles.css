@@ -31,7 +31,7 @@ button { color: inherit; }
 .leaderboard-card { flex: 1 1 auto; min-height: 0; background: #fff; border: 1.5px solid var(--ink); border-radius: 22px 22px 0 0; overflow: hidden; display: flex; flex-direction: column; }
 .section-title { border: 0; width: 100%; display: flex; justify-content: space-between; padding: 12px 15px 9px; background: var(--yellow); border-bottom: 1.5px solid var(--ink); font-size: 10px; letter-spacing: .12em; font-weight: 900; cursor: pointer; }
 .section-title svg { width: 14px; height: 14px; }
-.leader-row { flex: 1 1 0; min-height: 42px; border: 0; width: 100%; background: white; display: grid; grid-template-columns: 42px 1fr auto; gap: 8px; align-items: center; padding: 9px 15px; border-bottom: 1px solid #e1ded5; text-align: left; cursor: pointer; }
+.leader-row { flex: 0 0 44px; height: 44px; border: 0; width: 100%; background: white; display: grid; grid-template-columns: 42px 1fr auto; gap: 8px; align-items: center; padding: 0 15px; border-bottom: 1px solid #e1ded5; text-align: left; cursor: pointer; }
 .leader-row strong { font: 400 22px/1 Anton; }
 .leader-row span { font-weight: 800; font-size: 14px; }
 .leader-row b { font: 400 24px/1 Anton; }
