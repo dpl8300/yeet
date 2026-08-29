@@ -14,6 +14,7 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--paper); }
+html.home-scroll-locked, body.home-scroll-locked { height: 100%; overflow: hidden; overscroll-behavior: none; }
 button, input { font: inherit; }
 button { color: inherit; }
 :where(button, a, label, input, select, textarea, summary, [role="button"], [role="link"], [role="switch"]) { -webkit-tap-highlight-color: transparent; }

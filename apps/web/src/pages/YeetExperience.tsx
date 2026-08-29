@@ -36,6 +36,14 @@ export function YeetExperience() {
   });
   const snapshot = leaderboard.data;
   const profile = snapshot?.current_user;
+  const isHome = !tutorial && game.phase.kind === "home";
+
+  useEffect(() => {
+    if (!isHome) return;
+    const roots = [document.documentElement, document.body];
+    roots.forEach((root) => root.classList.add("home-scroll-locked"));
+    return () => roots.forEach((root) => root.classList.remove("home-scroll-locked"));
+  }, [isHome]);
 
   const finishTutorial = () => {
     localStorage.setItem("yeet.tutorial.complete", "true");
