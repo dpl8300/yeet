@@ -54,6 +54,10 @@ service_role JWTs
 Google OAuth client secret
 ```
 
+### Vercel Web Analytics
+
+In the Vercel project, open **Analytics** and enable **Web Analytics**, then redeploy. The app already includes the official `@vercel/analytics` React integration; there are no analytics environment variables to add.
+
 ## 3. Supabase Edge Functions: `WEB_ALLOWED_ORIGINS`
 
 The only custom Edge Function setting is the list of web origins allowed to call YEET functions. Derive it from your real URLs; do not copy the placeholder domain.
@@ -110,25 +114,63 @@ These belong in Supabase, not Vercel or the web `.env` file.
 
 Vercel preview URLs do not go into Google's redirect-URI list because Google returns to Supabase first. Supabase then returns the user to the app origin.
 
-### Six-digit email OTP
+### Email magic links with Resend
 
 1. In Supabase, open **Authentication → Email Templates**.
 2. Edit the **Magic Link / OTP** template.
-3. Include `{{ .Token }}` in the email body, for example:
+3. Include `{{ .ConfirmationURL }}` in the email body, for example:
 
 ```html
-<h2>Your YEET login code</h2>
-<p>Enter this code: {{ .Token }}</p>
+<h2>Sign in to YEET</h2>
+<p><a href="{{ .ConfirmationURL }}">Open your secure sign-in link</a></p>
 ```
 
 4. Confirm the Email provider is enabled under **Authentication → Sign In / Providers**.
-5. Configure a production SMTP provider before public launch if you do not want to rely on Supabase's limited default email delivery.
+5. Keep the Resend integration connected as the production email provider and set the desired Supabase Auth email rate limit.
+
+## 5. `support@yeetphone.com`
+
+Inbound support mail uses Namecheap's free forwarding. Resend remains responsible for outbound replies; do not enable Resend Receiving for the root domain.
+
+### Receive support messages
+
+The live domain already uses Namecheap BasicDNS, the `eforward*.registrar-servers.com` MX records, and Namecheap's forwarding SPF record. Preserve them.
+
+1. Sign in to Namecheap and open **Domain List → yeetphone.com → Manage → Domain**.
+2. Find **Redirect Email** and select **Add Forwarder**.
+3. Set **Alias** to `support` and **Forward to** to a monitored destination inbox.
+4. Save, allow about one hour for activation, and send a test from an address other than the destination inbox.
+
+Do not replace the root-domain MX records with Resend Receiving records. Resend inbound mail is webhook-based and would take over delivery for every address at the domain.
+
+### Send replies through Resend
+
+1. In **Resend → Domains**, confirm that `yeetphone.com` itself is verified for sending. Verification of only `auth.yeetphone.com` does not authorize `support@yeetphone.com`.
+2. If needed, add the SPF and DKIM records Resend provides. These sending records can coexist with Namecheap's root forwarding MX records; do not remove or replace the existing root MX records.
+3. In **Resend → API Keys**, create `Support SMTP` with **Sending access** restricted to `yeetphone.com`. Do not reuse the key created for Supabase.
+4. Store the new key only in the chosen mail client's password/credential storage. Never put it in this repository, Vercel browser variables, or client-side code.
+5. Configure a compatible mail client with:
+
+```text
+From: YEET Support <support@yeetphone.com>
+SMTP host: smtp.resend.com
+Port: 465
+Security: SSL/TLS
+Username: resend
+Password: the Support SMTP Resend API key
+```
+
+6. Send a reply to an external test address and confirm the message reports passing SPF and DKIM authentication.
+
+Namecheap forwarding is not a full mailbox. Received messages live in the destination inbox, and sent-message history is maintained by the mail client used for Resend SMTP.
 
 ## Final checklist
 
 - `apps/web/.env.local` exists locally and is ignored by Git.
 - Vercel contains only the two `VITE_` variables.
+- Vercel Web Analytics is enabled and the latest deployment reports page views.
 - Supabase Edge Function secrets contain `WEB_ALLOWED_ORIGINS`.
 - Supabase URL Configuration contains production, localhost, and preview callbacks.
 - Google Client Secret exists only in Google/Supabase configuration.
-- The email template contains `{{ .Token }}`.
+- The email template contains `{{ .ConfirmationURL }}` and Resend delivery is working.
+- `support@yeetphone.com` forwards to a monitored inbox and outbound replies authenticate through a separate restricted Resend key.

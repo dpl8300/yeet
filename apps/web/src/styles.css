@@ -130,6 +130,11 @@ button { color: inherit; }
 .safety-notice { display: grid; grid-template-columns: 28px 1fr; gap: 9px; align-items: start; padding: 11px; margin-bottom: 13px; border-radius: 14px; background: #f1edff; color: #432c92; }
 .safety-notice svg { width: 23px; }
 .safety-notice p { margin: 0; font-size: 9px; line-height: 1.45; }
+.legal-consent { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; margin: 0 1px 13px; padding: 12px; border: 1.5px solid var(--ink); border-radius: 14px; background: white; cursor: pointer; }
+.legal-consent input { width: 22px; height: 22px; margin: 0; accent-color: var(--purple); cursor: pointer; }
+.legal-consent span { color: #4f4a41; font-size: 10px; font-weight: 650; line-height: 1.5; }
+.legal-consent a, .tutorial-legal-links a { color: #432c92; font-weight: 900; text-decoration-thickness: 1.5px; text-underline-offset: 2px; }
+.tutorial-legal-links { display: flex; justify-content: center; gap: 8px; margin: 0 0 13px; font-size: 10px; }
 
 .state-screen { position: relative; height: 100svh; min-height: 0; padding: max(24px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left)); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; overflow: hidden; background: var(--paper); }
 .state-screen h1 { margin: 0; font-family: Anton, sans-serif; font-weight: 400; }
@@ -242,6 +247,8 @@ button { color: inherit; }
 .legal-card h1 { font: 400 clamp(70px, 19vw, 118px)/1 Anton; margin: 26px 0 30px; }
 .legal-card h2 { margin: 28px 0 6px; font: 400 25px/1 Anton; }
 .legal-card p { max-width: 650px; color: #504b42; line-height: 1.65; }
+.legal-card p:first-of-type { color: #38342d; }
+.legal-card a:not(.back-link) { color: #432c92; font-weight: 800; text-underline-offset: 3px; overflow-wrap: anywhere; }
 .back-link { color: var(--ink); font-size: 11px; font-weight: 900; }
 
 @keyframes fade-in { from { opacity: 0; } }
@@ -252,6 +259,8 @@ button { color: inherit; }
 button:focus-visible, input:focus-visible { outline: 4px solid var(--purple); outline-offset: 3px; }
 @media (min-width: 560px) { .dialog-content { bottom: auto; top: 50%; transform: translate(-50%, -50%); } @keyframes sheet-up { from { transform: translate(-50%, calc(-50% + 20px)); opacity: 0; } } }
 @media (max-height: 700px) {
+  .tutorial-card > h1 { font-size: clamp(80px, 24vh, 112px); margin-top: 6px; }
+  .tutorial-deck { margin-bottom: 14px; }
   .countdown-number { font-size: clamp(160px, 50vh, 230px); }
   .airtime-readout h1, .catch-readout h1, .result-readout h1 { font-size: clamp(88px, 24vh, 126px); }
   .result-actions { margin-top: 18px; gap: 7px; }

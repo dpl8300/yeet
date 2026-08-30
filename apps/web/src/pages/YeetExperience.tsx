@@ -19,10 +19,11 @@ import {
   cachedLeaderboard, getLeaderboard, isSupabaseConfigured, submitAttempt,
   type LeaderboardSnapshot, type ScoreSubmission
 } from "../lib/backend";
+import { hasAcceptedCurrentLegalTerms, recordLegalConsent } from "../lib/legal";
 import { formatSeconds } from "../lib/utils";
 
 export function YeetExperience() {
-  const [tutorial, setTutorial] = useState(() => localStorage.getItem("yeet.tutorial.complete") !== "true");
+  const [tutorial, setTutorial] = useState(() => !hasAcceptedCurrentLegalTerms());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -38,11 +39,13 @@ export function YeetExperience() {
   const snapshot = leaderboard.data;
   const profile = snapshot?.current_user;
 
+  const needsLegalConsent = !hasAcceptedCurrentLegalTerms();
   const finishTutorial = () => {
+    if (needsLegalConsent) recordLegalConsent();
     localStorage.setItem("yeet.tutorial.complete", "true");
     setTutorial(false);
   };
-  if (tutorial) return <Tutorial onContinue={finishTutorial} />;
+  if (tutorial) return <Tutorial onContinue={finishTutorial} requiresConsent={needsLegalConsent} />;
   if (game.phase.kind !== "home") {
     return <>
       <GameScreen
@@ -100,17 +103,27 @@ export function YeetExperience() {
   );
 }
 
-function Tutorial({ onContinue }: { onContinue: () => void }) {
+function Tutorial({ onContinue, requiresConsent }: { onContinue: () => void; requiresConsent: boolean }) {
+  const [acknowledged, setAcknowledged] = useState(false);
+  const canContinue = !requiresConsent || acknowledged;
   return (
     <main className="tutorial-screen"><section className="tutorial-card">
       <p className="eyebrow">WELCOME TO</p><h1>YEET</h1><p className="tutorial-deck">TAP → YEET → CATCH</p>
       <ol className="tutorial-steps">
-        <li><span>1</span><div><b>CLEAR THE AREA</b><p>Use a case. Stay away from people, pets, traffic, water, and anything breakable.</p></div></li>
+        <li><span>1</span><div><b>CLEAR THE AREA</b><p>Use a protective case and a large, clear area away from people, animals, traffic, water, stairs, ledges, overhead hazards, and breakable objects.</p></div></li>
         <li><span>2</span><div><b>HOLD STILL</b><p>We run a half-second sensor check before each attempt.</p></div></li>
-        <li><span>3</span><div><b>TOSS & CATCH</b><p>Keep it controlled. YEET measures the time between release and catch.</p></div></li>
+        <li><span>3</span><div><b>TOSS & CATCH</b><p>Make a controlled vertical toss within easy reach. Never chase a score or throw higher than you can safely catch.</p></div></li>
       </ol>
-      <div className="safety-notice"><CircleAlert /><p><b>YOUR PHONE. YOUR RISK.</b><br />Never play where a missed catch could hurt someone or damage property.</p></div>
-      <Button onClick={onContinue}>LET’S YEET</Button>
+      <div className="safety-notice"><CircleAlert /><p><b>THROWING A PHONE CAN BE DANGEROUS.</b><br />A missed catch can cause device damage, data loss, property damage, serious injury, or death. Never play while driving, walking, impaired, or with a damaged phone or battery.</p></div>
+      {requiresConsent ? (
+        <label className="legal-consent">
+          <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
+          <span>I am 18 or older, understand that throwing a phone can cause injury or damage, and agree to the <Link to="/terms" target="_blank" rel="noreferrer">Terms of Use</Link> and acknowledge the <Link to="/privacy" target="_blank" rel="noreferrer">Privacy Notice</Link>.</span>
+        </label>
+      ) : (
+        <p className="tutorial-legal-links"><Link to="/terms" target="_blank" rel="noreferrer">Terms of Use</Link><span>·</span><Link to="/privacy" target="_blank" rel="noreferrer">Privacy Notice</Link></p>
+      )}
+      <Button disabled={!canContinue} onClick={onContinue}>{requiresConsent ? "I AGREE — LET’S YEET" : "BACK TO YEET"}</Button>
     </section></main>
   );
 }

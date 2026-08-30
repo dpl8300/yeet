@@ -1,6 +1,6 @@
 # YEET
 
-YEET is a Vite, React, and TypeScript PWA that measures phone airtime in the browser. It includes guest play, Supabase accounts and leaderboard storage, optional device-local POV recording, branded video sharing, offline leaderboard snapshots, and installable Home Screen assets.
+YEET is a Vite, React, and TypeScript PWA that measures phone airtime in the browser. It includes guest play, Supabase accounts and leaderboard storage, optional device-local POV recording, branded video sharing, privacy-focused Vercel Web Analytics, offline leaderboard snapshots, and installable Home Screen assets.
 
 The original Swift app remains buildable under `apps/ios/` as the native reference implementation. Web gameplay has no haptics or haptic captions.
 
@@ -93,6 +93,8 @@ Import this repository and use:
 
 Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` separately for Production and Preview. `apps/web/vercel.json` provides React Router SPA rewrites and same-origin permissions for motion, camera, and microphone.
 
+Enable Web Analytics for the Vercel project before deploying. The app mounts the official `@vercel/analytics` React component at its root, so page loads and client-side route changes are reported after deployment without adding a cookie banner.
+
 Deployment references: [Vite on Vercel](https://vercel.com/docs/frameworks/frontend/vite), [Vercel monorepos](https://vercel.com/docs/monorepos/monorepo-faq), [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls), and [Supabase Edge Function deployment](https://supabase.com/docs/guides/functions/quickstart).
 
 ## Verify the preserved iOS app
@@ -118,3 +120,5 @@ Test each supported browser/device family before public launch:
 - Twenty consecutive complete POV recordings with audio, replay, branded export, and share/download.
 
 Rankings are casual/social, not hardware-attested or prize-grade. POV recordings are temporary object URLs and never leave the device unless the player explicitly shares or downloads one.
+
+The first-run safety acknowledgment and legal notices reduce ambiguity but are not a substitute for Washington legal advice, appropriate insurance, or a separate business entity. Support-email forwarding and Resend reply setup are documented in [`ENVIRONMENT.md`](ENVIRONMENT.md).
