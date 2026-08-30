@@ -1,12 +1,12 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Download, Play, Share2, TriangleAlert } from "lucide-react";
+import { Play, Share2, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createBrandedVideo,
-  downloadVideo,
   shareVideo,
   supportsBrandedPovExport
 } from "../lib/pov";
+import { pageColors, usePageChrome } from "../hooks/usePageChrome";
 import { Button } from "./ui/Button";
 
 type POVStage = "replay" | "exporting" | "share" | "failed";
@@ -36,6 +36,7 @@ export function POVDialog({
   const [message, setMessage] = useState<string>();
   const canBrand = supportsBrandedPovExport();
   const formattedAirtime = (airtimeMs / 1_000).toFixed(2);
+  usePageChrome(open ? pageColors.black : undefined);
 
   useEffect(() => () => URL.revokeObjectURL(rawUrl), [rawUrl]);
   useEffect(() => {
@@ -102,12 +103,6 @@ export function POVDialog({
     setMessage(undefined);
   };
 
-  const save = () => {
-    if (!shareBlob) return;
-    downloadVideo(shareBlob);
-    setMessage("SAVED TO DOWNLOADS");
-  };
-
   const share = async () => {
     if (!shareBlob) return;
     setMessage(undefined);
@@ -155,10 +150,12 @@ export function POVDialog({
                   </button>
                 )}
 
-                {message && <p className="pov-inline-status" role="status">{message}</p>}
-                <div className="pov-replay-actions">
-                  <DialogPrimitive.Close asChild><Button className="pov-dark-button" variant="secondary">DONE</Button></DialogPrimitive.Close>
-                  <Button onClick={() => void prepareShare()}>SHARE</Button>
+                <div className="pov-replay-footer">
+                  {message && <p className="pov-inline-status" role="status">{message}</p>}
+                  <div className="pov-replay-actions">
+                    <DialogPrimitive.Close asChild><Button className="pov-dark-button" variant="secondary">DONE</Button></DialogPrimitive.Close>
+                    <Button onClick={() => void prepareShare()}>SHARE</Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -191,11 +188,10 @@ export function POVDialog({
                 <h2>SHARE</h2>
                 <span aria-hidden />
               </header>
-              <video className="pov-share-preview" src={shareUrl} autoPlay loop playsInline controls />
+              <video className="pov-share-preview" src={shareUrl} autoPlay loop muted playsInline aria-label="Looping share preview" />
               {message && <p className="pov-share-status" role="status">{message}</p>}
               <div className="pov-share-actions">
-                <Button className="pov-dark-button" variant="secondary" onClick={save}><Download /> SAVE</Button>
-                <Button onClick={() => void share()}><Share2 /> SHARE</Button>
+                <Button onClick={() => void share()}><Share2 /> SAVE OR SHARE</Button>
               </div>
             </div>
           )}

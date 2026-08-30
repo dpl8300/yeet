@@ -13,6 +13,7 @@
 }
 
 * { box-sizing: border-box; }
+html { background: var(--paper); }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--paper); }
 html.home-scroll-locked, body.home-scroll-locked { height: 100%; overflow: hidden; overscroll-behavior: none; }
 button, input { font: inherit; }
@@ -214,10 +215,12 @@ button { color: inherit; }
 .pov-replay-heading strong { font: 400 48px/.9 Anton, sans-serif; font-variant-numeric: tabular-nums; }
 .pov-replay-heading span { margin-top: 5px; font-size: 10px; font-weight: 900; letter-spacing: .14em; }
 .pov-replay-heading > b { font: italic 400 37px/.9 Anton, sans-serif; transform: rotate(-3deg); }
-.pov-play { width: 82px; height: 82px; margin: auto; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(255,255,255,.94); color: #000; box-shadow: 0 8px 20px rgba(0,0,0,.35); cursor: pointer; pointer-events: auto; }
+.pov-play { position: absolute; top: 50%; left: 50%; width: 82px; height: 82px; margin: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(255,255,255,.94); color: #000; box-shadow: 0 8px 20px rgba(0,0,0,.35); transform: translate(-50%, -50%); cursor: pointer; pointer-events: auto; }
 .pov-play svg { width: 34px; height: 34px; margin-left: 5px; fill: currentColor; }
-.pov-inline-status { margin: auto 0 12px; padding: 8px 12px; border-radius: 10px; background: rgba(0,0,0,.62); font-size: 10px; font-weight: 800; }
-.pov-replay-actions, .pov-share-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; pointer-events: auto; }
+.pov-replay-footer { width: 100%; margin-top: auto; display: grid; gap: 12px; pointer-events: auto; }
+.pov-inline-status { margin: 0; padding: 8px 12px; border-radius: 10px; background: rgba(0,0,0,.62); font-size: 10px; font-weight: 800; }
+.pov-replay-actions, .pov-share-actions { width: 100%; display: grid; gap: 12px; pointer-events: auto; }
+.pov-replay-actions { grid-template-columns: 1fr 1fr; }
 .pov-fullscreen .button-primary { color: var(--ink); }
 .pov-dark-button.button-secondary { border-color: rgba(255,255,255,.82); background: rgba(0,0,0,.42); color: white; }
 .pov-share-state { min-height: 100svh; width: min(100%, 500px); margin: auto; padding: 24px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 17px; text-align: center; }
@@ -233,7 +236,7 @@ button { color: inherit; }
 .pov-share-screen header h2 { margin: 0; text-align: center; font-size: 16px; }
 .pov-share-preview { flex: 1 1 auto; width: 100%; min-height: 0; border-radius: 24px; object-fit: cover; background: #111; }
 .pov-share-status { flex: 0 0 auto; margin: 10px 0 -2px; color: var(--yellow); text-align: center; font-size: 10px; font-weight: 900; line-height: 1.4; }
-.pov-share-actions { flex: 0 0 auto; margin-top: 16px; }
+.pov-share-actions { flex: 0 0 auto; grid-template-columns: 1fr; margin-top: 16px; }
 
 .legal-shell { align-items: start; }
 .legal-card { width: min(100%, 720px); padding: 22px 0 60px; }

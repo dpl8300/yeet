@@ -22,6 +22,14 @@ describe("gameplay and result states", () => {
     view.unmount();
   });
 
+  it("matches the browser chrome color to the active full-screen phase", () => {
+    const view = wrap(<GameScreen phase={{ kind: "waiting" }} start={start} home={noop} session={null} onAccount={noop} />);
+    expect(document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content).toBe("#ffd108");
+    expect(document.documentElement.style.backgroundColor).toBe("rgb(255, 209, 8)");
+    view.rerender(<QueryClientProvider client={new QueryClient()}><GameScreen phase={{ kind: "countdown", value: 3 }} start={start} home={noop} session={null} onAccount={noop} /></QueryClientProvider>);
+    expect(document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content).toBe("#fffef9");
+  });
+
   it("renders retry controls for invalid attempts", () => {
     wrap(<GameScreen phase={{ kind: "invalid", reason: "Sampling failed." }} start={start} home={noop} session={null} onAccount={noop} />);
     expect(screen.getByText("NO YEET")).toBeInTheDocument();
@@ -59,11 +67,15 @@ describe("gameplay and result states", () => {
   });
 
   it("falls back to a raw full-screen share preview when branded export is unavailable", async () => {
-    wrap(<POVDialog open onOpenChange={noop} blob={new Blob(["video"], { type: "video/webm" })} airtimeMs={500} />);
+    const view = wrap(<POVDialog open onOpenChange={noop} blob={new Blob(["video"], { type: "video/webm" })} airtimeMs={500} />);
     expect(screen.getByText("Your POV")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play POV video" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "SHARE" }));
     expect(await screen.findByText(/original POV/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /SAVE/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "SAVE OR SHARE" })).toBeInTheDocument();
+    const preview = view.container.ownerDocument.querySelector<HTMLVideoElement>(".pov-share-preview");
+    expect(preview).not.toHaveAttribute("controls");
+    expect(preview).toHaveAttribute("loop");
+    expect(preview?.muted).toBe(true);
   });
 });

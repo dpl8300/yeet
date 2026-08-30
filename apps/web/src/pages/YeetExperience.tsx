@@ -13,6 +13,7 @@ import { Button } from "../components/ui/Button";
 import { Dialog } from "../components/ui/Dialog";
 import { Switch } from "../components/ui/Switch";
 import { useSession } from "../hooks/useSession";
+import { pageColors, usePageChrome } from "../hooks/usePageChrome";
 import { useYeetGame, type CompletedAttempt, type GamePhase } from "../hooks/useYeetGame";
 import {
   cachedLeaderboard, getLeaderboard, isSupabaseConfigured, submitAttempt,
@@ -152,6 +153,7 @@ export function GameScreen({ phase, start, home, session, profile, povRecording 
   phase: GamePhase; start: () => Promise<void>; home: () => void; session: Session | null;
   profile?: LeaderboardSnapshot["current_user"]; povRecording?: boolean; onAccount: () => void;
 }) {
+  usePageChrome(phase.kind === "waiting" ? pageColors.yellow : pageColors.paper);
   if (phase.kind === "countdown") return <Countdown value={phase.value} />;
   if (phase.kind === "waiting") return <Waiting />;
   if (phase.kind === "airborne") return <Airborne start={phase.start} recording={povRecording} />;
@@ -225,6 +227,7 @@ function ResultFlow({ attempt, retry, home, session, profile, onAccount }: {
   const previousProfileRef = useRef(profile);
   const celebratedRef = useRef(false);
   const [stage, setStage] = useState<ResultStage>("catch");
+  usePageChrome(stage === "rankUp" ? pageColors.black : pageColors.paper);
   const milliseconds = Math.round(attempt.result.airtime * 1_000);
   const estimate = useQuery({
     queryKey: ["candidate-rank", milliseconds],
