@@ -230,7 +230,11 @@ export function downloadVideo(blob: Blob) {
 export async function shareVideo(blob: Blob): Promise<"shared" | "downloaded"> {
   const file = videoFile(blob);
   if (navigator.share && navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title: "My YEET", text: "How high can you go?" });
+    await navigator.share({
+      files: [file],
+      title: "My YEET",
+      text: "How high can you go? https://yeetphone.com"
+    });
     return "shared";
   }
   downloadVideo(blob);

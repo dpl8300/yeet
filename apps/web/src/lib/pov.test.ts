@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { supportsBrandedPovExport, supportsPovRecording } from "./pov";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { shareVideo, supportsBrandedPovExport, supportsPovRecording } from "./pov";
 
 function enableRecordingApis() {
   Object.defineProperty(navigator, "mediaDevices", {
@@ -18,6 +18,8 @@ afterEach(() => {
   Reflect.deleteProperty(window, "AudioContext");
   Reflect.deleteProperty(HTMLCanvasElement.prototype, "captureStream");
   Reflect.deleteProperty(HTMLVideoElement.prototype, "captureStream");
+  Reflect.deleteProperty(navigator, "canShare");
+  Reflect.deleteProperty(navigator, "share");
 });
 
 describe("POV browser capabilities", () => {
@@ -43,5 +45,24 @@ describe("POV browser capabilities", () => {
     });
 
     expect(supportsBrandedPovExport()).toBe(true);
+  });
+});
+
+describe("POV sharing", () => {
+  it("shares the video with the YEET title and website link", async () => {
+    const canShare = vi.fn(() => true);
+    const share = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "canShare", { configurable: true, value: canShare });
+    Object.defineProperty(navigator, "share", { configurable: true, value: share });
+
+    const outcome = await shareVideo(new Blob(["video"], { type: "video/mp4" }));
+
+    expect(outcome).toBe("shared");
+    expect(canShare).toHaveBeenCalledWith({ files: [expect.any(File)] });
+    expect(share).toHaveBeenCalledWith({
+      files: [expect.objectContaining({ name: "yeet-flight.mp4", type: "video/mp4" })],
+      title: "My YEET",
+      text: "How high can you go? https://yeetphone.com"
+    });
   });
 });
