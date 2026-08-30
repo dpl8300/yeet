@@ -15,6 +15,8 @@ Object.defineProperty(globalThis, "localStorage", { configurable: true, value: s
 Object.defineProperty(window, "localStorage", { configurable: true, value: storage });
 Object.defineProperty(URL, "createObjectURL", { configurable: true, value: () => "blob:yeet-test" });
 Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: () => undefined });
+Object.defineProperty(HTMLMediaElement.prototype, "play", { configurable: true, value: async () => undefined });
+Object.defineProperty(HTMLMediaElement.prototype, "pause", { configurable: true, value: () => undefined });
 
 afterEach(() => {
   cleanup();

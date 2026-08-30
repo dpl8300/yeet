@@ -27,11 +27,20 @@ describe("YEET web experience", () => {
     expect(screen.getByRole("button", { name: /CONTINUE WITH GOOGLE/ })).toBeDisabled();
   });
 
+  it("keeps settings on the right and removes the header leaderboard button", () => {
+    localStorage.setItem("yeet.tutorial.complete", "true");
+    renderApp();
+    expect(screen.getByRole("button", { name: "Open settings" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open leaderboard" })).not.toBeInTheDocument();
+  });
+
   it("shows a clear invalid state when motion samples are unavailable", async () => {
     localStorage.setItem("yeet.tutorial.complete", "true");
     renderApp();
     await userEvent.click(screen.getByRole("button", { name: "YEET" }));
-    expect(await screen.findByText("NO SCORE")).toBeInTheDocument();
+    expect(await screen.findByText("3")).toBeInTheDocument();
+    expect(screen.getByText("HOLD STILL")).toBeInTheDocument();
+    expect(await screen.findByText("NO YEET")).toBeInTheDocument();
     expect(screen.getByText(/sample rate is not reliable/i)).toBeInTheDocument();
   });
 

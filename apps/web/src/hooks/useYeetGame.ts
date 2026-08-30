@@ -13,17 +13,20 @@ export type CompletedAttempt = {
   id: string;
   result: DetectionResult;
   samples: RawTraceSample[];
-  pov?: Blob;
+  pov:
+    | { kind: "none" }
+    | { kind: "finalizing" }
+    | { kind: "available"; blob: Blob }
+    | { kind: "failed"; message: string };
 };
 
 export type GamePhase =
   | { kind: "home" }
-  | { kind: "preflight" }
   | { kind: "countdown"; value: 3 | 2 | 1 }
   | { kind: "waiting" }
   | { kind: "airborne"; start: number }
   | { kind: "caught"; attempt: CompletedAttempt }
-  | { kind: "invalid"; reason: string };
+  | { kind: "invalid"; reason: string; canGoHome?: boolean };
 
 const wait = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 
@@ -31,13 +34,17 @@ export function useYeetGame() {
   const [phase, setPhase] = useState<GamePhase>({ kind: "home" });
   const [povEnabled, setPovEnabled] = useState(() => localStorage.getItem("yeet.pov") === "true");
   const [povMessage, setPovMessage] = useState<string>();
+  const [isStarting, setIsStarting] = useState(false);
+  const [isPovRecording, setIsPovRecording] = useState(false);
   const cleanupRef = useRef<() => void>(() => undefined);
   const runRef = useRef(0);
+  const startingRef = useRef(false);
 
   const cleanup = useCallback(() => {
     runRef.current += 1;
     cleanupRef.current();
     cleanupRef.current = () => undefined;
+    setIsPovRecording(false);
   }, []);
 
   const invalidate = useCallback((reason: string) => {
@@ -58,12 +65,21 @@ export function useYeetGame() {
   }, []);
 
   const start = useCallback(async () => {
+    if (startingRef.current) return;
     cleanup();
     const run = runRef.current;
+    startingRef.current = true;
+    setIsStarting(true);
     const capability = motionCapability();
     setPovMessage(undefined);
     if (capability === "view-only") {
-      setPhase({ kind: "invalid", reason: "This browser cannot read device motion. You can still view the leaderboard." });
+      setPhase({
+        kind: "invalid",
+        reason: "This browser cannot read device motion. You can still view the leaderboard.",
+        canGoHome: true
+      });
+      startingRef.current = false;
+      setIsStarting(false);
       return;
     }
 
@@ -78,13 +94,8 @@ export function useYeetGame() {
       void wakeLock?.release();
     };
     try {
-      setPhase({ kind: "preflight" });
       await requestMotionPermission();
       if (runRef.current !== run) return;
-      const preflight = await runStationaryPreflight();
-      if (runRef.current !== run) return;
-      if (hiddenDuringPreparation) throw new Error("page-hidden");
-      if (!preflight.ok) throw new Error(`preflight-${preflight.reason}`);
 
       if (povEnabled) {
         try {
@@ -99,9 +110,22 @@ export function useYeetGame() {
         }
       }
       wakeLock = await requestWakeLock();
-      for (const value of [3, 2, 1] as const) {
+      if (runRef.current !== run) return;
+
+      setPhase({ kind: "countdown", value: 3 });
+      const preflightStartedAt = performance.now();
+      const preflight = await runStationaryPreflight();
+      if (runRef.current !== run) return;
+      if (hiddenDuringPreparation) throw new Error("page-hidden");
+      if (!preflight.ok) throw new Error(`preflight-${preflight.reason}`);
+
+      await wait(Math.max(0, 1_000 - (performance.now() - preflightStartedAt)));
+      if (runRef.current !== run) { recorder?.discard(); return; }
+      if (hiddenDuringPreparation) throw new Error("page-hidden");
+
+      for (const value of [2, 1] as const) {
         setPhase({ kind: "countdown", value });
-        await wait(700);
+        await wait(1_000);
         if (runRef.current !== run) { recorder?.discard(); return; }
         if (hiddenDuringPreparation) throw new Error("page-hidden");
       }
@@ -119,6 +143,7 @@ export function useYeetGame() {
           setPovMessage("POV was disabled because recording could not start at full quality.");
         }
       }
+      setIsPovRecording(Boolean(recorder));
       setPhase({ kind: "waiting" });
 
       let stopped = false;
@@ -148,19 +173,37 @@ export function useYeetGame() {
         if (state.kind === "invalid") {
           release();
           recorder?.discard();
+          setIsPovRecording(false);
           setPhase({ kind: "invalid", reason: invalidCopy(state.reason) });
         }
         if (state.kind === "finished") {
           release();
-          try {
-            const pov = recorder ? await recorder.stop() : undefined;
-            setPhase({
-              kind: "caught",
-              attempt: { id: crypto.randomUUID(), result: state.result, samples, pov }
+          setIsPovRecording(false);
+          const attemptId = crypto.randomUUID();
+          setPhase({
+            kind: "caught",
+            attempt: {
+              id: attemptId,
+              result: state.result,
+              samples,
+              pov: recorder ? { kind: "finalizing" } : { kind: "none" }
+            }
+          });
+
+          if (recorder) {
+            void recorder.stop().then((blob) => {
+              if (runRef.current !== run) return;
+              setPhase((current) => current.kind === "caught" && current.attempt.id === attemptId
+                ? { ...current, attempt: { ...current.attempt, pov: { kind: "available", blob } } }
+                : current);
+            }).catch(() => {
+              if (runRef.current !== run) return;
+              const message = "Your airtime was measured, but the POV recording could not be finalized.";
+              setPovMessage(message);
+              setPhase((current) => current.kind === "caught" && current.attempt.id === attemptId
+                ? { ...current, attempt: { ...current.attempt, pov: { kind: "failed", message } } }
+                : current);
             });
-          } catch {
-            setPovMessage("Your airtime was measured, but the POV recording could not be finalized.");
-            setPhase({ kind: "caught", attempt: { id: crypto.randomUUID(), result: state.result, samples } });
           }
         }
       });
@@ -170,14 +213,24 @@ export function useYeetGame() {
       recorder?.discard();
       void wakeLock?.release();
       const reason = error instanceof Error ? error.message : "sensor-error";
-      setPhase({ kind: "invalid", reason: preparationCopy(reason) });
+      setPhase({ kind: "invalid", reason: preparationCopy(reason), canGoHome: true });
+    } finally {
+      if (runRef.current === run) {
+        startingRef.current = false;
+        setIsStarting(false);
+      }
     }
   }, [cleanup, invalidate, povEnabled]);
 
-  const home = useCallback(() => { cleanup(); setPhase({ kind: "home" }); }, [cleanup]);
+  const home = useCallback(() => {
+    startingRef.current = false;
+    setIsStarting(false);
+    cleanup();
+    setPhase({ kind: "home" });
+  }, [cleanup]);
   useEffect(() => cleanup, [cleanup]);
 
-  return { phase, start, home, povEnabled, setPov, povMessage };
+  return { phase, start, home, povEnabled, setPov, povMessage, isStarting, isPovRecording };
 }
 
 function invalidCopy(reason: string) {
@@ -196,6 +249,6 @@ function preparationCopy(reason: string) {
   if (reason === "motion-permission-denied") return "Motion access was denied. Enable Motion & Orientation Access in browser settings.";
   if (reason === "pov-unsupported") return "This browser cannot complete the full POV recording and export pipeline. Turn Record POV off to play.";
   if (reason.includes("preflight-not-enough-samples") || reason.includes("preflight-unreliable-sampling")) return "The motion sensor sample rate is not reliable enough for gameplay.";
-  if (reason.includes("preflight-uncalibrated")) return "The device failed the stationary calibration check. Place it still and try again.";
+  if (reason.includes("preflight-uncalibrated")) return "The stationary sensor check failed. Hold the phone still through the countdown and try again.";
   return "YEET could not prepare the device sensors. Try again in Safari or Chrome on a supported phone.";
 }

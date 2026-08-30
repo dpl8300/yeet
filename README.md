@@ -34,7 +34,7 @@ npm run typecheck
 npm run build
 ```
 
-The browser requests motion permission directly from the YEET button. Every attempt requires a 500ms stationary preflight with at least 20 finite, monotonic samples, a median magnitude from 0.75g through 1.25g, and a 95th-percentile sample gap no greater than 50ms. Devices that cannot provide reliable motion data cannot play.
+The browser requests motion permission directly from the YEET button. During the first second of the countdown, every attempt runs a 500ms stationary preflight with at least 20 finite, monotonic samples, a median magnitude from 0.75g through 1.25g, and a 95th-percentile sample gap no greater than 50ms. Devices that cannot provide reliable motion data cannot play.
 
 ## Configure Supabase
 

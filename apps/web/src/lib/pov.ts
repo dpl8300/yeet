@@ -63,7 +63,10 @@ export class POVRecorder {
     const recorder = this.recorder;
     if (!recorder) throw new Error("pov-not-recording");
     return await new Promise<Blob>((resolve, reject) => {
-      recorder.onerror = () => reject(new Error("pov-recording-failed"));
+      recorder.onerror = () => {
+        this.stopTracks();
+        reject(new Error("pov-recording-failed"));
+      };
       recorder.onstop = () => {
         const blob = new Blob(this.chunks, { type: recorder.mimeType });
         this.stopTracks();
@@ -86,7 +89,12 @@ export class POVRecorder {
   }
 }
 
-export async function createBrandedVideo(raw: Blob, airtimeMs: number, rank?: number) {
+export async function createBrandedVideo(
+  raw: Blob,
+  airtimeMs: number,
+  rank?: number,
+  candidateRank?: number
+) {
   if (!supportsBrandedPovExport()) throw new Error("pov-branded-export-unsupported");
   const inputUrl = URL.createObjectURL(raw);
   const video = document.createElement("video") as CaptureVideo;
@@ -97,6 +105,7 @@ export async function createBrandedVideo(raw: Blob, airtimeMs: number, rank?: nu
   let audioSource: MediaElementAudioSourceNode | undefined;
   let canvasStream: MediaStream | undefined;
   let recorder: MediaRecorder | undefined;
+  let animationFrame = 0;
 
   try {
     await new Promise<void>((resolve, reject) => {
@@ -143,17 +152,42 @@ export async function createBrandedVideo(raw: Blob, airtimeMs: number, rank?: nu
       const width = video.videoWidth * scale;
       const height = video.videoHeight * scale;
       context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
-      context.fillStyle = "rgba(17,16,13,.78)";
-      context.fillRect(42, 48, 996, 190);
-      context.fillStyle = "#FFD108";
-      context.font = "900 112px Impact, sans-serif";
-      context.fillText("YEET", 78, 160);
+
+      const topShade = context.createLinearGradient(0, 0, 0, 650);
+      topShade.addColorStop(0, "rgba(0,0,0,.74)");
+      topShade.addColorStop(1, "rgba(0,0,0,0)");
+      context.fillStyle = topShade;
+      context.fillRect(0, 0, canvas.width, 650);
+
+      const bottomShade = context.createLinearGradient(0, 1_000, 0, canvas.height);
+      bottomShade.addColorStop(0, "rgba(0,0,0,0)");
+      bottomShade.addColorStop(1, "rgba(0,0,0,.84)");
+      context.fillStyle = bottomShade;
+      context.fillRect(0, 1_000, canvas.width, 920);
+
+      context.textAlign = "center";
       context.fillStyle = "white";
-      context.font = "800 52px system-ui";
+      context.font = "900 92px Impact, Anton, sans-serif";
+      context.fillText("I YEETED", 540, 230);
+      context.fillText("MY PHONE", 540, 330);
+
+      context.fillStyle = "#FFD108";
+      context.font = "900 220px Impact, Anton, sans-serif";
+      context.fillText(`${(airtimeMs / 1000).toFixed(2)}s`, 540, 1_055);
+
+      context.fillStyle = "white";
+      context.font = "800 42px Inter, system-ui, sans-serif";
+      if (rank) {
+        context.fillText(`#${rank.toLocaleString()} IN THE WORLD`, 540, 1_145);
+      } else if (candidateRank) {
+        context.fillText(`WOULD RANK #${candidateRank.toLocaleString()}`, 540, 1_145);
+      }
+
+      context.font = "900 76px Impact, Anton, sans-serif";
       context.textAlign = "right";
-      context.fillText(`${(airtimeMs / 1000).toFixed(2)}s${rank ? `  #${rank}` : ""}`, 1000, 154);
+      context.fillText("YEET", 990, 1_815);
       context.textAlign = "left";
-      requestAnimationFrame(draw);
+      animationFrame = requestAnimationFrame(draw);
     };
     const ended = new Promise<void>((resolve) => { video.onended = () => resolve(); });
     recorder.start(250);
@@ -161,8 +195,11 @@ export async function createBrandedVideo(raw: Blob, airtimeMs: number, rank?: nu
     draw();
     await ended;
     recorder.stop();
-    return await complete;
+    const output = await complete;
+    cancelAnimationFrame(animationFrame);
+    return output;
   } finally {
+    cancelAnimationFrame(animationFrame);
     video.pause();
     if (recorder?.state !== "inactive") recorder?.stop();
     canvasStream?.getTracks().forEach((track) => track.stop());
@@ -172,16 +209,30 @@ export async function createBrandedVideo(raw: Blob, airtimeMs: number, rank?: nu
   }
 }
 
-export async function shareOrDownload(blob: Blob) {
+function videoFile(blob: Blob) {
   const extension = blob.type.includes("mp4") ? "mp4" : "webm";
-  const file = new File([blob], `yeet-flight.${extension}`, { type: blob.type });
+  return new File([blob], `yeet-flight.${extension}`, { type: blob.type });
+}
+
+export function downloadVideo(blob: Blob) {
+  const file = videoFile(blob);
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = file.name;
+  anchor.hidden = true;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 5_000);
+}
+
+export async function shareVideo(blob: Blob): Promise<"shared" | "downloaded"> {
+  const file = videoFile(blob);
   if (navigator.share && navigator.canShare?.({ files: [file] })) {
     await navigator.share({ files: [file], title: "My YEET", text: "How high can you go?" });
-    return;
+    return "shared";
   }
-  const anchor = document.createElement("a");
-  anchor.href = URL.createObjectURL(blob);
-  anchor.download = file.name;
-  anchor.click();
-  window.setTimeout(() => URL.revokeObjectURL(anchor.href), 5_000);
+  downloadVideo(blob);
+  return "downloaded";
 }
