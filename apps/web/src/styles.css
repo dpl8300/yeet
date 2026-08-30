@@ -21,7 +21,7 @@ button { color: inherit; }
 :where(button, a, label, input, select, textarea, summary, [role="button"], [role="link"], [role="switch"]) { -webkit-tap-highlight-color: transparent; }
 :where(button, a, label, summary, [role="button"], [role="link"], [role="switch"]) { user-select: none; -webkit-user-select: none; touch-action: manipulation; }
 .app-shell { height: 100svh; display: grid; place-items: center; background: var(--paper); }
-.game-card { width: min(100%, 500px); height: 100%; min-height: 0; padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); background: var(--paper); display: flex; flex-direction: column; overflow: hidden; }
+.game-card { width: min(100%, 500px); height: 100%; min-height: 0; padding: max(30px, calc(env(safe-area-inset-top) + 10px)) max(18px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); background: var(--paper); display: flex; flex-direction: column; overflow: hidden; }
 .topbar { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; }
 .topbar-spacer { width: 44px; height: 44px; }
 .icon-button { width: 44px; height: 44px; border: 1.5px solid var(--ink); background: white; border-radius: 50%; display: grid; place-items: center; cursor: pointer; }
