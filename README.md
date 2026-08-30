@@ -93,7 +93,9 @@ Import this repository and use:
 
 Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` separately for Production and Preview. `apps/web/vercel.json` provides React Router SPA rewrites and same-origin permissions for motion, camera, and microphone.
 
-Enable Web Analytics for the Vercel project before deploying. The app mounts the official `@vercel/analytics` React component at its root, so page loads and client-side route changes are reported after deployment without adding a cookie banner.
+Enable Web Analytics for the Vercel project before deploying. The app mounts the official `@vercel/analytics` React component at its root, so page loads, client-side route changes, and the anonymous product-flow events documented in [`ANALYTICS.md`](ANALYTICS.md) are reported after deployment without third-party analytics cookies. Analytics URLs are stripped of query strings and fragments before transmission, and custom events never include account identifiers, contact details, raw motion, or POV data.
+
+Vercel Pro bills page views and custom events and currently limits the base plan to two properties per custom event. YEET keeps every event within that limit and does not sample events. Use the Production environment filter when reviewing live funnels, and configure Spend Management before high-volume promotion. Vercel's built-in bounce rate ignores custom events; use `legal_gate_viewed` versus `legal_accepted` for the Terms-gate conversion rather than interpreting the single-page `/` bounce rate as a gameplay exit.
 
 Deployment references: [Vite on Vercel](https://vercel.com/docs/frameworks/frontend/vite), [Vercel monorepos](https://vercel.com/docs/monorepos/monorepo-faq), [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls), and [Supabase Edge Function deployment](https://supabase.com/docs/guides/functions/quickstart).
 

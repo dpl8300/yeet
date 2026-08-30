@@ -19,16 +19,31 @@ import {
   cachedLeaderboard, getLeaderboard, isSupabaseConfigured, submitAttempt,
   type LeaderboardSnapshot, type ScoreSubmission
 } from "../lib/backend";
-import { hasAcceptedCurrentLegalTerms, recordLegalConsent } from "../lib/legal";
+import {
+  accountState,
+  classifyAnalyticsError,
+  displayMode,
+  rankBucket,
+  trackEvent,
+  type AccountSource,
+  type AccountState
+} from "../lib/analytics";
+import {
+  LEGAL_VERSION,
+  legalConsentStatus,
+  recordLegalConsent,
+  type LegalConsentStatus
+} from "../lib/legal";
 import { formatSeconds } from "../lib/utils";
 
 export function YeetExperience() {
-  const [tutorial, setTutorial] = useState(() => !hasAcceptedCurrentLegalTerms());
+  const [tutorial, setTutorial] = useState(() => legalConsentStatus() !== "current");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const game = useYeetGame();
-  const { session } = useSession();
+  const [accountSource, setAccountSource] = useState<AccountSource>("home");
+  const initialLegalStatus = useRef(legalConsentStatus());
+  const { session, loading: sessionLoading } = useSession();
   const queryClient = useQueryClient();
   const leaderboard = useQuery({
     queryKey: ["leaderboard"],
@@ -38,14 +53,57 @@ export function YeetExperience() {
   });
   const snapshot = leaderboard.data;
   const profile = snapshot?.current_user;
+  const profileResolved = !session || (leaderboard.isFetched && !leaderboard.isError && !leaderboard.isPlaceholderData);
+  const currentAccountState = accountState(session, profile, profileResolved);
+  const game = useYeetGame(currentAccountState);
+  const homeTracked = useRef(false);
 
-  const needsLegalConsent = !hasAcceptedCurrentLegalTerms();
+  const needsLegalConsent = legalConsentStatus() !== "current";
   const finishTutorial = () => {
-    if (needsLegalConsent) recordLegalConsent();
+    if (needsLegalConsent) {
+      const priorStatus = initialLegalStatus.current === "outdated" ? "outdated" : "missing";
+      trackEvent("legal_accepted", { prior_status: priorStatus, version: LEGAL_VERSION });
+      recordLegalConsent();
+    } else {
+      trackEvent("tutorial_replay_completed", { account_state: currentAccountState });
+    }
     localStorage.setItem("yeet.tutorial.complete", "true");
     setTutorial(false);
   };
-  if (tutorial) return <Tutorial onContinue={finishTutorial} requiresConsent={needsLegalConsent} />;
+
+  useEffect(() => {
+    const visible = !tutorial && game.phase.kind === "home";
+    if (!visible) { homeTracked.current = false; return; }
+    if (sessionLoading || (session && !leaderboard.isFetched)) return;
+    if (homeTracked.current) return;
+    homeTracked.current = true;
+    trackEvent("home_viewed", { account_state: currentAccountState, display_mode: displayMode() });
+  }, [currentAccountState, game.phase.kind, leaderboard.isFetched, session, sessionLoading, tutorial]);
+
+  const openAccount = (source: AccountSource) => {
+    setAccountSource(source);
+    trackEvent("account_opened", { account_state: currentAccountState, source });
+    setAccountOpen(true);
+  };
+  const openSettings = () => {
+    trackEvent("settings_opened", { account_state: currentAccountState, display_mode: displayMode() });
+    setSettingsOpen(true);
+  };
+  const openLeaderboard = () => {
+    const dataState = !isSupabaseConfigured
+      ? "unconfigured"
+      : leaderboard.isError ? (snapshot ? "cached" : "error")
+        : leaderboard.isFetching ? "loading" : "live";
+    trackEvent("leaderboard_opened", { account_state: currentAccountState, data_state: dataState });
+    setLeaderboardOpen(true);
+  };
+
+  if (tutorial) return <Tutorial
+    onContinue={finishTutorial}
+    requiresConsent={needsLegalConsent}
+    priorStatus={initialLegalStatus.current}
+    accountState={currentAccountState}
+  />;
   if (game.phase.kind !== "home") {
     return <>
       <GameScreen
@@ -54,14 +112,16 @@ export function YeetExperience() {
         home={game.home}
         session={session}
         profile={profile}
+        accountState={currentAccountState}
         povRecording={game.isPovRecording}
-        onAccount={() => setAccountOpen(true)}
+        onAccount={() => openAccount("result")}
       />
       <AccountDialog
         open={accountOpen}
         onOpenChange={setAccountOpen}
         session={session}
         profile={profile}
+        source={accountSource}
         onChanged={() => void queryClient.invalidateQueries({ queryKey: ["leaderboard"] })}
       />
     </>;
@@ -73,12 +133,12 @@ export function YeetExperience() {
         <header className="topbar">
           <span className="topbar-spacer" aria-hidden />
           <p className="eyebrow">AIRTIME CHALLENGE</p>
-          <button className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="Open settings"><Settings /></button>
+          <button className="icon-button" onClick={openSettings} aria-label="Open settings"><Settings /></button>
         </header>
         <div className="hero-copy"><h1>YEET</h1><p>THROW HIGH.<br />CATCH CLEAN.</p></div>
         <div className="leaderboard-stack">
-          <LeaderboardPreview snapshot={snapshot} loading={leaderboard.isLoading} failed={leaderboard.isError} onOpen={() => setLeaderboardOpen(true)} />
-          <button className="player-row" onClick={() => setAccountOpen(true)}>
+          <LeaderboardPreview snapshot={snapshot} loading={leaderboard.isLoading} failed={leaderboard.isError} onOpen={openLeaderboard} />
+          <button className="player-row" onClick={() => openAccount("home")}>
             <span>{profile?.rank ? `#${profile.rank}` : "YOU"}</span>
             <span>{profile ? `@${profile.handle} · ${formatSeconds(profile.airtime_ms)}` : session ? "CHOOSE YOUR HANDLE" : "PLAY AS GUEST"}</span>
             <ChevronRight />
@@ -97,15 +157,33 @@ export function YeetExperience() {
         </div>
       </section>
       <LeaderboardDialog open={leaderboardOpen} onOpenChange={setLeaderboardOpen} snapshot={snapshot} stale={leaderboard.isFetching} error={leaderboard.error instanceof Error ? leaderboard.error.message : undefined} />
-      <AccountDialog open={accountOpen} onOpenChange={setAccountOpen} session={session} profile={profile} onChanged={() => void queryClient.invalidateQueries({ queryKey: ["leaderboard"] })} />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} onTutorial={() => { setSettingsOpen(false); setTutorial(true); }} accountLabel={profile ? `@${profile.handle}` : session ? "Finish profile" : "Sign in"} onAccount={() => { setSettingsOpen(false); setAccountOpen(true); }} />
+      <AccountDialog open={accountOpen} onOpenChange={setAccountOpen} session={session} profile={profile} source={accountSource} onChanged={() => void queryClient.invalidateQueries({ queryKey: ["leaderboard"] })} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} onTutorial={() => { setSettingsOpen(false); setTutorial(true); }} accountLabel={profile ? `@${profile.handle}` : session ? "Finish profile" : "Sign in"} onAccount={() => { setSettingsOpen(false); openAccount("settings"); }} />
     </main>
   );
 }
 
-function Tutorial({ onContinue, requiresConsent }: { onContinue: () => void; requiresConsent: boolean }) {
+function Tutorial({ onContinue, requiresConsent, priorStatus, accountState }: {
+  onContinue: () => void;
+  requiresConsent: boolean;
+  priorStatus: LegalConsentStatus;
+  accountState: AccountState;
+}) {
   const [acknowledged, setAcknowledged] = useState(false);
+  const tracked = useRef(false);
   const canContinue = !requiresConsent || acknowledged;
+  useEffect(() => {
+    if (tracked.current) return;
+    tracked.current = true;
+    if (requiresConsent) {
+      trackEvent("legal_gate_viewed", {
+        reason: priorStatus === "outdated" ? "version_update" : "first_visit",
+        version: LEGAL_VERSION
+      });
+    } else {
+      trackEvent("tutorial_replay_viewed", { account_state: accountState });
+    }
+  }, [accountState, priorStatus, requiresConsent]);
   return (
     <main className="tutorial-screen"><section className="tutorial-card">
       <p className="eyebrow">WELCOME TO</p><h1>YEET</h1><p className="tutorial-deck">TAP → YEET → CATCH</p>
@@ -154,16 +232,16 @@ function SettingsDialog({ open, onOpenChange, onTutorial, accountLabel, onAccoun
   );
 }
 
-export function GameScreen({ phase, start, home, session, profile, povRecording = false, onAccount }: {
+export function GameScreen({ phase, start, home, session, profile, accountState = "guest", povRecording = false, onAccount }: {
   phase: GamePhase; start: () => Promise<void>; home: () => void; session: Session | null;
-  profile?: LeaderboardSnapshot["current_user"]; povRecording?: boolean; onAccount: () => void;
+  profile?: LeaderboardSnapshot["current_user"]; accountState?: AccountState; povRecording?: boolean; onAccount: () => void;
 }) {
   usePageChrome(phase.kind === "waiting" ? pageColors.yellow : pageColors.paper);
   if (phase.kind === "countdown") return <Countdown value={phase.value} />;
   if (phase.kind === "waiting") return <Waiting />;
   if (phase.kind === "airborne") return <Airborne start={phase.start} recording={povRecording} />;
-  if (phase.kind === "invalid") return <Invalid reason={phase.reason} retry={start} home={home} canGoHome={phase.canGoHome} />;
-  if (phase.kind === "caught") return <ResultFlow attempt={phase.attempt} retry={start} home={home} session={session} profile={profile} onAccount={onAccount} />;
+  if (phase.kind === "invalid") return <Invalid reason={phase.reason} retry={start} home={home} canGoHome={phase.canGoHome} accountState={accountState} />;
+  if (phase.kind === "caught") return <ResultFlow attempt={phase.attempt} retry={start} home={home} session={session} profile={profile} accountState={accountState} onAccount={onAccount} />;
   return null;
 }
 
@@ -205,7 +283,13 @@ function Airborne({ start, recording }: { start: number; recording: boolean }) {
   );
 }
 
-function Invalid({ reason, retry, home, canGoHome }: { reason: string; retry: () => Promise<void>; home: () => void; canGoHome?: boolean }) {
+function Invalid({ reason, retry, home, canGoHome, accountState }: {
+  reason: string;
+  retry: () => Promise<void>;
+  home: () => void;
+  canGoHome?: boolean;
+  accountState: AccountState;
+}) {
   return (
     <main className="state-screen invalid-screen">
       <div className="no-yeet-mark"><Frown /></div>
@@ -213,8 +297,8 @@ function Invalid({ reason, retry, home, canGoHome }: { reason: string; retry: ()
       <p>Couldn’t verify that one.</p>
       <p className="invalid-detail">{reason}</p>
       <div className="state-actions">
-        <Button onClick={() => void retry()}>TRY AGAIN</Button>
-        {canGoHome && <Button variant="ghost" onClick={home}>BACK HOME</Button>}
+        <Button onClick={() => { trackEvent("result_action", { account_state: accountState, action: "retry_invalid" }); void retry(); }}>TRY AGAIN</Button>
+        {canGoHome && <Button variant="ghost" onClick={() => { trackEvent("result_action", { account_state: accountState, action: "back_home" }); home(); }}>BACK HOME</Button>}
       </div>
     </main>
   );
@@ -223,14 +307,15 @@ function Invalid({ reason, retry, home, canGoHome }: { reason: string; retry: ()
 type ResultStage = "catch" | "rankUp" | "result";
 type ResultKind = "normal" | "personalBest" | "worldRecord";
 
-function ResultFlow({ attempt, retry, home, session, profile, onAccount }: {
+function ResultFlow({ attempt, retry, home, session, profile, accountState, onAccount }: {
   attempt: CompletedAttempt; retry: () => Promise<void>; home: () => void; session: Session | null;
-  profile?: LeaderboardSnapshot["current_user"]; onAccount: () => void;
+  profile?: LeaderboardSnapshot["current_user"]; accountState: AccountState; onAccount: () => void;
 }) {
   const queryClient = useQueryClient();
   const reducedMotion = usePrefersReducedMotion();
   const previousProfileRef = useRef(profile);
   const celebratedRef = useRef(false);
+  const achievementTrackedRef = useRef(false);
   const [stage, setStage] = useState<ResultStage>("catch");
   usePageChrome(stage === "rankUp" ? pageColors.black : pageColors.paper);
   const milliseconds = Math.round(attempt.result.airtime * 1_000);
@@ -239,10 +324,23 @@ function ResultFlow({ attempt, retry, home, session, profile, onAccount }: {
     queryFn: () => getLeaderboard(milliseconds),
     enabled: !session && isSupabaseConfigured
   });
+  const estimateTrackedRef = useRef(false);
+  const autoSaveStartedRef = useRef(false);
   const save = useMutation({
     mutationKey: ["submit-attempt", attempt.id],
     mutationFn: () => submitAttempt(attempt.id, attempt.samples),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["leaderboard"] })
+    onSuccess: (submission) => {
+      const outcome = submission.already_processed
+        ? "duplicate"
+        : previousProfileRef.current?.airtime_ms == null ? "first_score"
+          : submission.is_personal_best ? "personal_best" : "saved";
+      trackEvent("score_save_result", { outcome, detail: rankBucket(submission.rank) });
+      void queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+    },
+    onError: (error) => trackEvent("score_save_result", {
+      outcome: "failure",
+      detail: classifyAnalyticsError(error)
+    })
   });
   const savedRef = useRef<ScoreSubmission | undefined>(undefined);
   savedRef.current = save.data;
@@ -251,8 +349,25 @@ function ResultFlow({ attempt, retry, home, session, profile, onAccount }: {
   }
 
   useEffect(() => {
-    if (session && profile && save.status === "idle") save.mutate();
+    if (session && profile && save.status === "idle" && !autoSaveStartedRef.current) {
+      autoSaveStartedRef.current = true;
+      save.mutate();
+    }
   }, [profile, save.status, session]);
+
+  useEffect(() => {
+    if (session || estimateTrackedRef.current) return;
+    if (!isSupabaseConfigured) {
+      estimateTrackedRef.current = true;
+      trackEvent("guest_rank_result", { outcome: "unavailable", rank_bucket: "none" });
+    } else if (estimate.isSuccess) {
+      estimateTrackedRef.current = true;
+      trackEvent("guest_rank_result", { outcome: "success", rank_bucket: rankBucket(estimate.data.candidate_rank) });
+    } else if (estimate.isError) {
+      estimateTrackedRef.current = true;
+      trackEvent("guest_rank_result", { outcome: "failure", rank_bucket: "none" });
+    }
+  }, [estimate.data, estimate.isError, estimate.isSuccess, session]);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -274,9 +389,16 @@ function ResultFlow({ attempt, retry, home, session, profile, onAccount }: {
 
   useEffect(() => {
     if (stage !== "rankUp") return;
+    if (save.data && !achievementTrackedRef.current) {
+      achievementTrackedRef.current = true;
+      const kind = save.data.rank === 1
+        ? "world_record"
+        : previousProfileRef.current?.airtime_ms == null ? "first_rank" : "personal_best";
+      trackEvent("achievement_viewed", { kind, rank_bucket: rankBucket(save.data.rank) });
+    }
     const id = window.setTimeout(() => setStage("result"), reducedMotion ? 1_200 : 3_000);
     return () => window.clearTimeout(id);
-  }, [reducedMotion, stage]);
+  }, [reducedMotion, save.data, stage]);
 
   if (stage === "catch") return <Catch result={attempt.result.airtime} reducedMotion={reducedMotion} />;
   if (stage === "rankUp" && save.data) {
@@ -293,6 +415,7 @@ function ResultFlow({ attempt, retry, home, session, profile, onAccount }: {
       milliseconds={milliseconds}
       session={session}
       profile={profile}
+      accountState={accountState}
       estimate={estimate.data?.candidate_rank}
       save={save}
       retry={retry}
@@ -331,13 +454,14 @@ function RankUp({ previousRank, newRank, reducedMotion }: { previousRank?: numbe
 type SaveMutation = ReturnType<typeof useMutation<ScoreSubmission, Error, void>>;
 
 function ResultScreen({
-  kind, attempt, milliseconds, session, profile, estimate, save, retry, home, onAccount
+  kind, attempt, milliseconds, session, profile, accountState, estimate, save, retry, home, onAccount
 }: {
   kind: ResultKind;
   attempt: CompletedAttempt;
   milliseconds: number;
   session: Session | null;
   profile?: LeaderboardSnapshot["current_user"];
+  accountState: AccountState;
   estimate?: number | null;
   save: SaveMutation;
   retry: () => Promise<void>;
@@ -353,14 +477,14 @@ function ResultScreen({
 
       <div className="result-readout"><h1>{(milliseconds / 1_000).toFixed(2)}<small>s</small></h1><p>AIRTIME</p></div>
 
-      {kind === "normal" && <ResultCloudStatus session={session} profile={profile} estimate={estimate} save={save} onAccount={onAccount} />}
+      {kind === "normal" && <ResultCloudStatus session={session} profile={profile} accountState={accountState} estimate={estimate} save={save} onAccount={onAccount} />}
       {kind === "worldRecord" && <p className="world-record-copy">YOU ARE #1</p>}
 
       <div className="state-actions result-actions">
-        <Button disabled={attempt.pov.kind === "finalizing"} onClick={() => void retry()}>YEET AGAIN</Button>
-        <Button variant="secondary" onClick={home}>BACK HOME</Button>
+        <Button disabled={attempt.pov.kind === "finalizing"} onClick={() => { trackEvent("result_action", { account_state: accountState, action: "yeet_again" }); void retry(); }}>YEET AGAIN</Button>
+        <Button variant="secondary" onClick={() => { trackEvent("result_action", { account_state: accountState, action: "back_home" }); home(); }}>BACK HOME</Button>
         {attempt.pov.kind === "finalizing" && <Button variant="secondary" disabled>PROCESSING POV…</Button>}
-        {availablePOV && <Button variant="secondary" onClick={() => setPovOpen(true)}><Video /> VIEW POV</Button>}
+        {availablePOV && <Button variant="secondary" onClick={() => { trackEvent("result_action", { account_state: accountState, action: "open_pov" }); setPovOpen(true); }}><Video /> VIEW POV</Button>}
         {attempt.pov.kind === "failed" && <p className="result-pov-error" role="status">{attempt.pov.message}</p>}
       </div>
 
@@ -372,24 +496,31 @@ function ResultScreen({
           airtimeMs={milliseconds}
           rank={save.data?.rank}
           candidateRank={estimate ?? undefined}
+          accountState={accountState}
+          resultKind={kind}
         />
       )}
     </main>
   );
 }
 
-function ResultCloudStatus({ session, profile, estimate, save, onAccount }: {
+function ResultCloudStatus({ session, profile, accountState, estimate, save, onAccount }: {
   session: Session | null;
   profile?: LeaderboardSnapshot["current_user"];
+  accountState: AccountState;
   estimate?: number | null;
   save: SaveMutation;
   onAccount: () => void;
 }) {
   if (!isSupabaseConfigured) return <p className="result-note warning">Leaderboard saving is unavailable until Supabase is configured.</p>;
-  if (!session) return <button className="result-signin" onClick={onAccount}><b>{estimate ? `ESTIMATED RANK #${estimate}` : "RANK ESTIMATE PENDING"}</b><span>Sign in to save this score.</span><ChevronRight /></button>;
-  if (!profile) return <button className="result-signin" onClick={onAccount}><b>CHOOSE A HANDLE</b><span>Your valid score is ready to save.</span><ChevronRight /></button>;
+  const openAccount = () => {
+    trackEvent("result_action", { account_state: accountState, action: "open_account" });
+    onAccount();
+  };
+  if (!session) return <button className="result-signin" onClick={openAccount}><b>{estimate ? `ESTIMATED RANK #${estimate}` : "RANK ESTIMATE PENDING"}</b><span>Sign in to save this score.</span><ChevronRight /></button>;
+  if (!profile) return <button className="result-signin" onClick={openAccount}><b>CHOOSE A HANDLE</b><span>Your valid score is ready to save.</span><ChevronRight /></button>;
   if (save.isPending) return <p className="result-note">Saving verified score…</p>;
-  if (save.isError) return <div className="save-error"><p>{save.error.message}</p><Button variant="secondary" onClick={() => save.mutate()}>RETRY SAVE</Button></div>;
+  if (save.isError) return <div className="save-error"><p>{save.error.message}</p><Button variant="secondary" onClick={() => { trackEvent("result_action", { account_state: accountState, action: "retry_save" }); save.mutate(); }}>RETRY SAVE</Button></div>;
   if (save.data) return null;
   return <p className="result-note">Preparing verified submission…</p>;
 }

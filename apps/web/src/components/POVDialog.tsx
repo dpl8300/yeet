@@ -7,6 +7,7 @@ import {
   supportsBrandedPovExport
 } from "../lib/pov";
 import { pageColors, usePageChrome } from "../hooks/usePageChrome";
+import { trackEvent, type AccountState } from "../lib/analytics";
 import { Button } from "./ui/Button";
 
 type POVStage = "replay" | "exporting" | "share" | "failed";
@@ -17,7 +18,9 @@ export function POVDialog({
   blob,
   airtimeMs,
   rank,
-  candidateRank
+  candidateRank,
+  accountState = "guest",
+  resultKind = "normal"
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -25,16 +28,26 @@ export function POVDialog({
   airtimeMs: number;
   rank?: number;
   candidateRank?: number;
+  accountState?: AccountState;
+  resultKind?: "normal" | "personalBest" | "worldRecord";
 }) {
   const rawUrl = useMemo(() => URL.createObjectURL(blob), [blob]);
   const rawVideoRef = useRef<HTMLVideoElement>(null);
   const exportRunRef = useRef(0);
+  const wasOpenRef = useRef(false);
+  const playbackStartedRef = useRef(false);
+  const playbackCompletedRef = useRef(false);
+  const closingRef = useRef(false);
   const [stage, setStage] = useState<POVStage>("replay");
   const [isPlaying, setIsPlaying] = useState(false);
   const [shareBlob, setShareBlob] = useState<Blob>();
   const [shareUrl, setShareUrl] = useState<string>();
   const [message, setMessage] = useState<string>();
   const canBrand = supportsBrandedPovExport();
+  const exportFormat = canBrand ? "branded" : "raw";
+  const analyticsResultKind = resultKind === "personalBest"
+    ? "personal_best"
+    : resultKind === "worldRecord" ? "world_record" : "normal";
   const formattedAirtime = (airtimeMs / 1_000).toFixed(2);
   usePageChrome(open ? pageColors.black : undefined);
 
@@ -49,14 +62,35 @@ export function POVDialog({
     return () => URL.revokeObjectURL(url);
   }, [shareBlob]);
   useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      wasOpenRef.current = true;
+      closingRef.current = false;
+      playbackStartedRef.current = false;
+      playbackCompletedRef.current = false;
+      trackEvent("pov_viewed", { account_state: accountState, result_kind: analyticsResultKind });
+      return;
+    }
     if (open) return;
+    wasOpenRef.current = false;
     exportRunRef.current += 1;
     rawVideoRef.current?.pause();
     setIsPlaying(false);
     setStage("replay");
     setShareBlob(undefined);
     setMessage(undefined);
-  }, [open]);
+  }, [accountState, analyticsResultKind, open]);
+
+  const changeOpen = (nextOpen: boolean) => {
+    if (!nextOpen && open && !closingRef.current) {
+      closingRef.current = true;
+      if (stage === "exporting") {
+        exportRunRef.current += 1;
+        trackEvent("pov_export_result", { outcome: "cancelled", format: exportFormat });
+      }
+      trackEvent("pov_closed", { account_state: accountState, stage });
+    }
+    onOpenChange(nextOpen);
+  };
 
   const togglePlayback = async () => {
     const video = rawVideoRef.current;
@@ -80,6 +114,7 @@ export function POVDialog({
     setIsPlaying(false);
     setMessage(undefined);
     setStage("exporting");
+    trackEvent("pov_export_started", { account_state: accountState, format: exportFormat });
     const run = ++exportRunRef.current;
     try {
       const output = canBrand
@@ -89,14 +124,17 @@ export function POVDialog({
       setShareBlob(output);
       setMessage(canBrand ? undefined : "Branded export is unavailable here, so this preview uses your original POV.");
       setStage("share");
+      trackEvent("pov_export_result", { outcome: "success", format: exportFormat });
     } catch (error) {
       if (run !== exportRunRef.current) return;
       setMessage(exportErrorMessage(error));
       setStage("failed");
+      trackEvent("pov_export_result", { outcome: "failure", format: exportFormat });
     }
   };
 
   const returnToReplay = () => {
+    if (stage === "exporting") trackEvent("pov_export_result", { outcome: "cancelled", format: exportFormat });
     exportRunRef.current += 1;
     setStage("replay");
     setShareBlob(undefined);
@@ -108,15 +146,20 @@ export function POVDialog({
     setMessage(undefined);
     try {
       const outcome = await shareVideo(shareBlob);
+      trackEvent("pov_share_result", { outcome, format: exportFormat });
       setMessage(outcome === "shared" ? "SHARED" : "SHARING ISN’T AVAILABLE HERE · SAVED TO DOWNLOADS");
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (error instanceof DOMException && error.name === "AbortError") {
+        trackEvent("pov_share_result", { outcome: "cancelled", format: exportFormat });
+        return;
+      }
+      trackEvent("pov_share_result", { outcome: "failure", format: exportFormat });
       setMessage(error instanceof Error ? error.message : "The video could not be shared.");
     }
   };
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <DialogPrimitive.Root open={open} onOpenChange={changeOpen}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="pov-overlay" />
         <DialogPrimitive.Content className="pov-fullscreen" aria-describedby={undefined}>
@@ -130,10 +173,20 @@ export function POVDialog({
                 src={rawUrl}
                 playsInline
                 onClick={() => void togglePlayback()}
-                onPlay={() => setIsPlaying(true)}
+                onPlay={() => {
+                  setIsPlaying(true);
+                  if (!playbackStartedRef.current) {
+                    playbackStartedRef.current = true;
+                    trackEvent("pov_playback_started", { account_state: accountState, stage: "replay" });
+                  }
+                }}
                 onPause={() => setIsPlaying(false)}
                 onEnded={() => {
                   setIsPlaying(false);
+                  if (!playbackCompletedRef.current) {
+                    playbackCompletedRef.current = true;
+                    trackEvent("pov_playback_completed", { account_state: accountState, stage: "replay" });
+                  }
                   if (rawVideoRef.current) rawVideoRef.current.currentTime = 0;
                 }}
               />

@@ -8,6 +8,13 @@ import {
   runStationaryPreflight
 } from "../lib/device-motion";
 import { POVRecorder, supportsPovRecording } from "../lib/pov";
+import {
+  airtimeBucket,
+  displayMode,
+  trackEvent,
+  type AccountState,
+  type AnalyticsErrorReason
+} from "../lib/analytics";
 
 export type CompletedAttempt = {
   id: string;
@@ -30,7 +37,7 @@ export type GamePhase =
 
 const wait = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 
-export function useYeetGame() {
+export function useYeetGame(accountState: AccountState = "guest") {
   const [phase, setPhase] = useState<GamePhase>({ kind: "home" });
   const [povEnabled, setPovEnabled] = useState(() => localStorage.getItem("yeet.pov") === "true");
   const [povMessage, setPovMessage] = useState<string>();
@@ -47,21 +54,24 @@ export function useYeetGame() {
     setIsPovRecording(false);
   }, []);
 
-  const invalidate = useCallback((reason: string) => {
+  const invalidate = useCallback((reason: string, analyticsReason: AnalyticsErrorReason) => {
     cleanup();
+    trackEvent("yeet_invalid", { account_state: accountState, reason: analyticsReason });
     setPhase({ kind: "invalid", reason });
-  }, [cleanup]);
+  }, [accountState, cleanup]);
 
   const setPov = useCallback((enabled: boolean) => {
     if (enabled && !supportsPovRecording()) {
       setPovMessage("POV recording needs camera, microphone, and MediaRecorder support in this browser.");
       setPovEnabled(false);
       localStorage.setItem("yeet.pov", "false");
+      trackEvent("pov_setting_changed", { outcome: "unsupported", display_mode: displayMode() });
       return;
     }
     setPovMessage(undefined);
     setPovEnabled(enabled);
     localStorage.setItem("yeet.pov", String(enabled));
+    trackEvent("pov_setting_changed", { outcome: enabled ? "enabled" : "disabled", display_mode: displayMode() });
   }, []);
 
   const start = useCallback(async () => {
@@ -70,6 +80,7 @@ export function useYeetGame() {
     const run = runRef.current;
     startingRef.current = true;
     setIsStarting(true);
+    trackEvent("yeet_started", { account_state: accountState, pov_requested: povEnabled });
     const capability = motionCapability();
     setPovMessage(undefined);
     if (capability === "view-only") {
@@ -78,6 +89,7 @@ export function useYeetGame() {
         reason: "This browser cannot read device motion. You can still view the leaderboard.",
         canGoHome: true
       });
+      trackEvent("yeet_invalid", { account_state: accountState, reason: "motion_unsupported" });
       startingRef.current = false;
       setIsStarting(false);
       return;
@@ -107,6 +119,7 @@ export function useYeetGame() {
           setPovEnabled(false);
           localStorage.setItem("yeet.pov", "false");
           setPovMessage("POV was disabled because this device could not prepare the camera and microphone.");
+          trackEvent("pov_recording_result", { outcome: "prepare_failed", account_state: accountState });
         }
       }
       wakeLock = await requestWakeLock();
@@ -141,15 +154,18 @@ export function useYeetGame() {
           setPovEnabled(false);
           localStorage.setItem("yeet.pov", "false");
           setPovMessage("POV was disabled because recording could not start at full quality.");
+          trackEvent("pov_recording_result", { outcome: "start_failed", account_state: accountState });
         }
       }
       setIsPovRecording(Boolean(recorder));
       setPhase({ kind: "waiting" });
+      trackEvent("yeet_ready", { account_state: accountState, pov_active: Boolean(recorder) });
 
       let stopped = false;
+      let throwTracked = false;
       let stopMotion: () => void = () => undefined;
       let timeout = 0;
-      const visibility = () => { if (document.hidden) invalidate("The attempt ended because the page was hidden."); };
+      const visibility = () => { if (document.hidden) invalidate("The attempt ended because the page was hidden.", "page_hidden"); };
       const release = () => {
         if (stopped) return;
         stopped = true;
@@ -161,25 +177,34 @@ export function useYeetGame() {
       document.removeEventListener("visibilitychange", preparationVisibility);
       cleanupRef.current = () => { release(); recorder?.discard(); };
       document.addEventListener("visibilitychange", visibility);
-      timeout = window.setTimeout(() => invalidate("No throw detected within 15 seconds."), 15_100);
+      timeout = window.setTimeout(() => invalidate("No throw detected within 15 seconds.", "timeout"), 15_100);
 
       stopMotion = listenForMotion(async (motion, raw) => {
         if (stopped || runRef.current !== run) return;
         samples.push(raw);
         const state = detector.process(motion);
         if (state.kind === "airborne" || state.kind === "possible-landing") {
+          if (!throwTracked) {
+            throwTracked = true;
+            trackEvent("throw_detected", { account_state: accountState, pov_active: Boolean(recorder) });
+          }
           setPhase((current) => current.kind === "airborne" ? current : { kind: "airborne", start: state.kind === "airborne" ? state.start : state.start });
         }
         if (state.kind === "invalid") {
           release();
           recorder?.discard();
           setIsPovRecording(false);
+          trackEvent("yeet_invalid", { account_state: accountState, reason: detectionAnalyticsReason(state.reason) });
           setPhase({ kind: "invalid", reason: invalidCopy(state.reason) });
         }
         if (state.kind === "finished") {
           release();
           setIsPovRecording(false);
           const attemptId = crypto.randomUUID();
+          trackEvent("yeet_completed", {
+            account_state: accountState,
+            airtime_bucket: airtimeBucket(Math.round(state.result.airtime * 1_000))
+          });
           setPhase({
             kind: "caught",
             attempt: {
@@ -193,6 +218,7 @@ export function useYeetGame() {
           if (recorder) {
             void recorder.stop().then((blob) => {
               if (runRef.current !== run) return;
+              trackEvent("pov_recording_result", { outcome: "available", account_state: accountState });
               setPhase((current) => current.kind === "caught" && current.attempt.id === attemptId
                 ? { ...current, attempt: { ...current.attempt, pov: { kind: "available", blob } } }
                 : current);
@@ -200,6 +226,7 @@ export function useYeetGame() {
               if (runRef.current !== run) return;
               const message = "Your airtime was measured, but the POV recording could not be finalized.";
               setPovMessage(message);
+              trackEvent("pov_recording_result", { outcome: "finalize_failed", account_state: accountState });
               setPhase((current) => current.kind === "caught" && current.attempt.id === attemptId
                 ? { ...current, attempt: { ...current.attempt, pov: { kind: "failed", message } } }
                 : current);
@@ -213,6 +240,7 @@ export function useYeetGame() {
       recorder?.discard();
       void wakeLock?.release();
       const reason = error instanceof Error ? error.message : "sensor-error";
+      trackEvent("yeet_invalid", { account_state: accountState, reason: preparationAnalyticsReason(reason) });
       setPhase({ kind: "invalid", reason: preparationCopy(reason), canGoHome: true });
     } finally {
       if (runRef.current === run) {
@@ -220,7 +248,7 @@ export function useYeetGame() {
         setIsStarting(false);
       }
     }
-  }, [cleanup, invalidate, povEnabled]);
+  }, [accountState, cleanup, invalidate, povEnabled]);
 
   const home = useCallback(() => {
     startingRef.current = false;
@@ -251,4 +279,23 @@ function preparationCopy(reason: string) {
   if (reason.includes("preflight-not-enough-samples") || reason.includes("preflight-unreliable-sampling")) return "The motion sensor sample rate is not reliable enough for gameplay.";
   if (reason.includes("preflight-uncalibrated")) return "The stationary sensor check failed. Hold the phone still through the countdown and try again.";
   return "YEET could not prepare the device sensors. Try again in Safari or Chrome on a supported phone.";
+}
+
+function detectionAnalyticsReason(reason: string): AnalyticsErrorReason {
+  const reasons: Record<string, AnalyticsErrorReason> = {
+    "no-throw": "no_throw",
+    "too-short": "too_short",
+    "sample-gap": "sample_gap",
+    "non-monotonic-timestamp": "invalid_timestamp",
+    "invalid-sample": "invalid_sample"
+  };
+  return reasons[reason] ?? "unknown";
+}
+
+function preparationAnalyticsReason(reason: string): AnalyticsErrorReason {
+  if (reason === "page-hidden") return "page_hidden";
+  if (reason === "motion-permission-denied") return "permission_denied";
+  if (reason.includes("not-enough-samples") || reason.includes("unreliable-sampling")) return "preflight_unreliable";
+  if (reason.includes("preflight-uncalibrated")) return "preflight_uncalibrated";
+  return "unknown";
 }

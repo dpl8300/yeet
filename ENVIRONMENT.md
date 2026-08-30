@@ -54,9 +54,11 @@ service_role JWTs
 Google OAuth client secret
 ```
 
-### Vercel Web Analytics
+### Vercel Web Analytics and custom events
 
-In the Vercel project, open **Analytics** and enable **Web Analytics**, then redeploy. The app already includes the official `@vercel/analytics` React integration; there are no analytics environment variables to add.
+In the Vercel project, open **Analytics** and enable **Web Analytics**, then redeploy. The app already includes the official `@vercel/analytics` React integration and typed custom flow events; there are no analytics environment variables to add. Use the dashboard environment selector to keep Preview verification separate from Production reporting.
+
+The base Pro plan supports two custom properties per event, which the app enforces. Page views and custom events are billable, so configure **Team Settings → Billing → Spend Management** before a large launch. The complete event dictionary, privacy rules, and dashboard funnel recipes are in [`ANALYTICS.md`](ANALYTICS.md).
 
 ## 3. Supabase Edge Functions: `WEB_ALLOWED_ORIGINS`
 
@@ -168,7 +170,7 @@ Namecheap forwarding is not a full mailbox. Received messages live in the destin
 
 - `apps/web/.env.local` exists locally and is ignored by Git.
 - Vercel contains only the two `VITE_` variables.
-- Vercel Web Analytics is enabled and the latest deployment reports page views.
+- Vercel Web Analytics is enabled and the latest deployment reports page views plus `legal_gate_viewed`, `home_viewed`, and a test gameplay event in the correct environment.
 - Supabase Edge Function secrets contain `WEB_ALLOWED_ORIGINS`.
 - Supabase URL Configuration contains production, localhost, and preview callbacks.
 - Google Client Secret exists only in Google/Supabase configuration.
