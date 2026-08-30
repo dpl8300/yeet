@@ -390,7 +390,7 @@ function ResultCloudStatus({ session, profile, estimate, save, onAccount }: {
   if (!profile) return <button className="result-signin" onClick={onAccount}><b>CHOOSE A HANDLE</b><span>Your valid score is ready to save.</span><ChevronRight /></button>;
   if (save.isPending) return <p className="result-note">Saving verified score…</p>;
   if (save.isError) return <div className="save-error"><p>{save.error.message}</p><Button variant="secondary" onClick={() => save.mutate()}>RETRY SAVE</Button></div>;
-  if (save.data) return <p className="result-note"><b>SAVED · RANK #{save.data.rank}</b><br />Personal best {formatSeconds(save.data.personal_best_ms)}</p>;
+  if (save.data) return null;
   return <p className="result-note">Preparing verified submission…</p>;
 }
 

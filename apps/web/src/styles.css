@@ -183,6 +183,7 @@ button { color: inherit; }
 .result-readout { margin-top: 14px; }
 .result-readout h1 { font-size: clamp(104px, 31vw, 164px); }
 .result-actions { margin-top: 28px; }
+.result-actions > .button-primary { margin-bottom: 4px; }
 .result-note { width: min(100%, 360px); padding: 14px; border: 1.5px solid var(--ink); border-radius: 15px; background: #f5f2e9; }
 .result-signin { width: min(100%, 360px); display: grid; grid-template-columns: 1fr 20px; text-align: left; border: 1.5px solid var(--ink); border-radius: 15px; background: var(--yellow); padding: 13px; cursor: pointer; }
 .result-signin b, .result-signin span { display: block; grid-column: 1; }
