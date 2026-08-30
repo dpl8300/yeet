@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { cachedLeaderboard } from "./lib/backend";
 import { LEGAL_CONSENT_KEY, LEGAL_VERSION } from "./lib/legal";
 
 vi.mock("@vercel/analytics/react", () => ({
@@ -26,6 +27,12 @@ describe("YEET web experience", () => {
   it("mounts Vercel Web Analytics at the app root", () => {
     renderApp();
     expect(screen.getByTestId("vercel-analytics")).toBeInTheDocument();
+  });
+
+  it("discards the retired leaderboard cache containing seeded accounts", () => {
+    localStorage.setItem("yeet.leaderboard.v1", JSON.stringify({ leaders: [{ handle: "seeded" }] }));
+    expect(cachedLeaderboard()).toBeUndefined();
+    expect(localStorage.getItem("yeet.leaderboard.v1")).toBeNull();
   });
 
   it("requires an adult safety acknowledgment before first gameplay", async () => {

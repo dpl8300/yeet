@@ -25,11 +25,13 @@ export type ScoreSubmission = {
   already_processed: boolean;
 };
 
-const cacheKey = "yeet.leaderboard.v1";
+const cacheKey = "yeet.leaderboard.v2";
+const retiredCacheKeys = ["yeet.leaderboard.v1"];
 export const emptySnapshot: LeaderboardSnapshot = { leaders: [], current_user: null, candidate_rank: null, total_players: 0 };
 
 export function cachedLeaderboard() {
   try {
+    retiredCacheKeys.forEach((key) => localStorage.removeItem(key));
     const raw = localStorage.getItem(cacheKey);
     return raw ? JSON.parse(raw) as LeaderboardSnapshot : undefined;
   } catch { return undefined; }
