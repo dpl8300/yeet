@@ -286,7 +286,6 @@ function ResultFlow({ attempt, retry, home, session, profile, onAccount }: {
       kind={kind}
       attempt={attempt}
       milliseconds={milliseconds}
-      previousProfile={previousProfileRef.current}
       session={session}
       profile={profile}
       estimate={estimate.data?.candidate_rank}
@@ -327,12 +326,11 @@ function RankUp({ previousRank, newRank, reducedMotion }: { previousRank?: numbe
 type SaveMutation = ReturnType<typeof useMutation<ScoreSubmission, Error, void>>;
 
 function ResultScreen({
-  kind, attempt, milliseconds, previousProfile, session, profile, estimate, save, retry, home, onAccount
+  kind, attempt, milliseconds, session, profile, estimate, save, retry, home, onAccount
 }: {
   kind: ResultKind;
   attempt: CompletedAttempt;
   milliseconds: number;
-  previousProfile?: LeaderboardSnapshot["current_user"];
   session: Session | null;
   profile?: LeaderboardSnapshot["current_user"];
   estimate?: number | null;
@@ -351,9 +349,6 @@ function ResultScreen({
       <div className="result-readout"><h1>{(milliseconds / 1_000).toFixed(2)}<small>s</small></h1><p>AIRTIME</p></div>
 
       {kind === "normal" && <ResultCloudStatus session={session} profile={profile} estimate={estimate} save={save} onAccount={onAccount} />}
-      {kind === "personalBest" && (
-        <div className="previous-best"><span>PREVIOUS PB</span><b>{previousProfile ? formatSeconds(previousProfile.airtime_ms) : "FIRST SCORE"}</b></div>
-      )}
       {kind === "worldRecord" && <p className="world-record-copy">YOU ARE #1</p>}
 
       <div className="state-actions result-actions">

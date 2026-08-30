@@ -196,9 +196,6 @@ button { color: inherit; }
 .world-result-badge { display: grid; justify-items: center; gap: 5px; color: var(--purple); }
 .world-result-badge svg { width: 34px; height: 34px; fill: var(--yellow); color: var(--ink); }
 .world-result-badge b { font-size: 17px; letter-spacing: .04em; }
-.previous-best { width: min(100%, 360px); min-height: 72px; margin-top: 22px; display: grid; place-content: center; gap: 5px; border-radius: 16px; background: rgba(17,16,13,.045); }
-.previous-best span { color: #6a655b; font-size: 10px; font-weight: 900; letter-spacing: .09em; }
-.previous-best b { font-size: 20px; }
 .world-record-copy { margin: 22px 0 0; color: var(--purple); font-size: 23px; font-weight: 900; }
 .save-error { width: min(100%, 360px); margin-bottom: 15px; }
 .save-error p { color: #8b3718; font-size: 11px; }
@@ -258,6 +255,5 @@ button:focus-visible, input:focus-visible { outline: 4px solid var(--purple); ou
   .airtime-readout h1, .catch-readout h1, .result-readout h1 { font-size: clamp(88px, 24vh, 126px); }
   .result-actions { margin-top: 18px; gap: 7px; }
   .result-actions .button { min-height: 46px; }
-  .previous-best { min-height: 60px; margin-top: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } .confetti { display: none; } }
