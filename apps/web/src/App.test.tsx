@@ -25,6 +25,8 @@ describe("YEET web experience", () => {
     await userEvent.click(screen.getByText("PLAY AS GUEST"));
     expect(screen.getByText("SAVE YOUR SCORES")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /CONTINUE WITH GOOGLE/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "EMAIL ME A MAGIC LINK" })).toBeDisabled();
+    expect(screen.queryByText(/SIX-DIGIT CODE/)).not.toBeInTheDocument();
   });
 
   it("keeps settings on the right and removes the header leaderboard button", () => {

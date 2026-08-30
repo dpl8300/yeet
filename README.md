@@ -62,7 +62,7 @@ The API bundler is intentional: `submit-attempt` imports `packages/airtime-core`
 
 Set the Edge Function secret `WEB_ALLOWED_ORIGINS` to a comma-separated list of the exact production origin, localhost, and the approved Vercel preview wildcard (for example, `https://yeet.example,http://localhost:5173,https://*-your-team.vercel.app`). `submit-attempt` verifies the access token, rejects traces over 2,500 samples or 20 seconds, re-runs the shared detector, writes only server-derived metrics through a service-only RPC, and never stores the raw trace. The migration revokes direct authenticated access to the former score-writing RPC.
 
-Enable Google and Email providers in Supabase Auth. Email templates must emit the six-digit token. Set:
+Enable Google and Email providers in Supabase Auth. Configure the Magic Link template with `{{ .ConfirmationURL }}` so it sends a sign-in link rather than a numeric OTP. Set:
 
 - `SITE_URL` to the exact production URL.
 - Production redirect to `https://your-domain.example/auth/callback`.
@@ -71,7 +71,7 @@ Enable Google and Email providers in Supabase Auth. Email templates must emit th
 
 The Google Cloud OAuth callback remains the Supabase callback URL shown on the Google provider page. The web app builds its post-auth redirect from `window.location.origin`, so each Vercel preview returns to itself.
 
-Account deletion requires the user to verify a fresh email OTP. The Edge Function accepts only a Supabase session created within the preceding ten minutes, deletes the Auth user with the service role, and relies on existing foreign-key cascades for profile, attempts, and personal-best cleanup.
+Account deletion requires a Supabase session created within the preceding ten minutes. When the current session is older, the web app emails a fresh magic sign-in link before exposing the deletion action. The Edge Function deletes the Auth user with the service role and relies on existing foreign-key cascades for profile, attempts, and personal-best cleanup.
 
 With Docker running, verify the local database:
 

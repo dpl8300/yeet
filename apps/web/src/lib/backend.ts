@@ -69,18 +69,12 @@ export async function signInWithGoogle() {
   if (error) throw error;
 }
 
-export async function sendEmailOtp(email: string) {
+export async function sendEmailMagicLink(email: string) {
   if (!supabase) throw new Error("Accounts are not configured.");
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/auth/callback` }
   });
-  if (error) throw error;
-}
-
-export async function verifyEmailOtp(email: string, token: string) {
-  if (!supabase) throw new Error("Accounts are not configured.");
-  const { error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
   if (error) throw error;
 }
 
